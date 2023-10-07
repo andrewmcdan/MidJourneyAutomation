@@ -248,12 +248,59 @@ const askThemeQuestions = () => {
     return inquirer.prompt(questions);
 }
 
+const askImageGenQuestions = () => {
+    const questions = [
+        {
+            name: 'GENERATIONS',
+            type: 'input',
+            message: 'How many times do you want to generate?'
+        },
+        {
+            name: 'UPSCALE',
+            type: 'input',
+            message: 'How many times do you want to upscale?'
+        },
+        {
+            name: 'VARIATION',
+            type: 'input',
+            message: 'How many times do you want to generate a variation?'
+        },
+        {
+            name: 'ZOOM',
+            type: 'input',
+            message: 'How many times do you want to zoom out?'
+        }
+    ];
+    return inquirer.prompt(questions);
+}
+
+const askOptionQuestions = () => {
+    const questions = [
+        {
+            name: 'NAME',
+            type: 'input',
+            message: 'What is the option name?'
+        },
+        {
+            name: 'VALUE',
+            type: 'input',
+            message: 'What is the option value?'
+        },
+        {
+            name: 'ENABLED',
+            type: 'input',
+            message: 'Is the option enabled? (y/n)'
+        }
+    ];
+    return inquirer.prompt(questions);
+}
+
 const printModifyPromptsMenu = () => {
     console.log(chalk.yellowBright("Modify Prompts Menu: "));
     console.log(chalk.white("1. Add prompt"));
     console.log(chalk.white("2. Remove prompt"));
     console.log(chalk.white("3. Modify prompt"));
-    console.log(chalk.white("0. Exit"));
+    console.log(chalk.white("0. Back"));
 }
 
 const printModifyThemesMenu = () => {
@@ -261,7 +308,7 @@ const printModifyThemesMenu = () => {
     console.log(chalk.white("1. Add theme"));
     console.log(chalk.white("2. Remove theme"));
     console.log(chalk.white("3. Modify theme"));
-    console.log(chalk.white("0. Exit"));
+    console.log(chalk.white("0. Back"));
 }
 
 const printModifyOptionsMenu = () => {
@@ -269,7 +316,7 @@ const printModifyOptionsMenu = () => {
     console.log(chalk.white("1. Add option"));
     console.log(chalk.white("2. Remove option"));
     console.log(chalk.white("3. Modify option"));
-    console.log(chalk.white("0. Exit"));
+    console.log(chalk.white("0. Back"));
 }
 
 // run
@@ -282,6 +329,8 @@ async function run() {
     let upscaleAnswer = 0;
     let variationAnswer = 0;
     let zoomAnswer = 0;
+
+    let runAsk = false;
 
     while (menuOption.OPTION != "0") {
         // print menu options
@@ -359,7 +408,7 @@ async function run() {
                         case "1":
                             console.log("Add theme");
                             // ask for the theme
-                            let addTheme = await askThemeQuestions();
+                            let addTheme = await askThemeQuestionsShort();
                             // add the theme to the prompts object
                             if (prompts.themes == null) prompts.themes = [];
                             //split the theme keywords into an array
@@ -385,10 +434,11 @@ async function run() {
                             break;
                         case "3":
                             console.log("Modify theme");
+                            //console.log("Which theme do you want to modify?");
                             // ask for the theme number
                             let modifyTheme = await askMenuOption();
                             // ask for the theme
-                            let modifyThemeQuestions = await askThemeQuestions();
+                            let modifyThemeQuestions = await askThemeQuestionsShort();
                             // modify the theme in the prompts object
                             if (prompts.themes == null) prompts.themes = [];
                             //split the theme keywords into an array
@@ -408,30 +458,88 @@ async function run() {
                         default:
                             console.log("Invalid option");
                             break;
-                        }
                     }
+                }
                 break;
             case "4":
                 console.log("Modify options (applies to all generations)");
+                let modifyOptionsMenuOption = { OPTION: "" };
+                while (modifyOptionsMenuOption.OPTION != "0") {
+                    printPromtptsFile("options");
+                    // print the modify options menu
+                    printModifyOptionsMenu();
+                    // ask for the menu option
+                    modifyOptionsMenuOption = await askMenuOption();
+                    switch (modifyOptionsMenuOption.OPTION) {
+                        case "1":
+                            console.log("Add option");
+                            // ask for the option
+                            let addOption = await askOptionQuestions();
+                            // add the option to the prompts object
+                            if (prompts.options == null) prompts.options = [];
+                            // create the option object
+                            let option = {
+                                name: addOption.NAME,
+                                value: addOption.VALUE,
+                                enabled: addOption.ENABLED == "y" || addOption.ENABLED == "Y" ? true : false
+                            };
+                            prompts.options.push(option);
+                            // save the prompts object to the prompts.json file
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            break;
+                        case "2":
+                            console.log("Remove option");
+                            // ask for the option number
+                            let removeOption = await askMenuOption();
+                            // remove the option from the prompts object
+                            if (prompts.options == null) prompts.options = [];
+                            prompts.options.splice(parseInt(removeOption.OPTION) - 1, 1);
+                            // save the prompts object to the prompts.json file
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));                            
+                            break;
+                        case "3":
+                            console.log("Modify option");
+                            // ask for the option number
+                            let modifyOption = await askMenuOption();
+                            // ask for the option
+                            let modifyOptionQuestions = await askOptionQuestions();
+                            // modify the option in the prompts object
+                            if (prompts.options == null) prompts.options = [];
+                            // create the option object
+                            let modifyOptionObject = {
+                                name: modifyOptionQuestions.NAME,
+                                value: modifyOptionQuestions.VALUE,
+                                enabled: modifyOptionQuestions.ENABLED == "y" || modifyOptionQuestions.ENABLED == "Y" ? true : false
+                            };
+                            prompts.options[parseInt(modifyOption.OPTION) - 1] = modifyOptionObject;
+                            // save the prompts object to the prompts.json file
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));                            
+                            break;
+                        case "0":
+                            console.log("Exit");
+                            break;
+                        default:
+                            console.log("Invalid option");
+                            break;
+                    }
+                }
                 break;
             case "5":
                 console.log("Start thematic generation from saved theme");
-                break;
-            case "6":
-                console.log("Start thematic generation from questions");
-                // ask theme questions
-                let themeQuestions = await askThemeQuestions();
-
+                // print the themes
+                printPromtptsFile("themes");
+                // ask for the theme number
+                let themeChoice = await askMenuOption();
+                let basicAnswers = await askImageGenQuestions();
                 //split the theme keywords into an array
-                let themeKeywords = themeQuestions.THEME.split(",");
+                let themeKeywords = prompts.themes[parseInt(themeChoice.OPTION) - 1].keywords;
                 // create the theme object
                 let theme = {
                     keywords: themeKeywords,
-                    style: themeQuestions.STYLE
+                    style: prompts.themes[parseInt(themeChoice.OPTION) - 1].style
                 };
                 // generate the prompt from the theme
-                if (themeQuestions.CHATGPTGENERATIONS > 25) themeQuestions.CHATGPTGENERATIONS = 25;
-                let res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
+                let res = await generatePromptFromThemKeywords(theme);
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
                 res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
@@ -446,14 +554,63 @@ async function run() {
                 // set the prompt answer
                 promptAnswer = res.prompts[parseInt(promptChoice.OPTION) - 1];
                 // set the answers
+                generationsAnswer = parseInt(basicAnswers.GENERATIONS);
+                upscaleAnswer = parseInt(basicAnswers.UPSCALE);
+                variationAnswer = parseInt(basicAnswers.VARIATION);
+                zoomAnswer = parseInt(basicAnswers.ZOOM);
+                runAsk = true;
+                break;
+            case "6":
+                console.log("Start thematic generation from questions");
+                // ask theme questions
+                let themeQuestions = await askThemeQuestions();
+
+                //split the theme keywords into an array
+                themeKeywords = themeQuestions.THEME.split(",");
+                // create the theme object
+                theme = {
+                    keywords: themeKeywords,
+                    style: themeQuestions.STYLE
+                };
+                // generate the prompt from the theme
+                if (themeQuestions.CHATGPTGENERATIONS > 25) themeQuestions.CHATGPTGENERATIONS = 25;
+                res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
+                // find and replace all "-" in res with " " (space)
+                res = res.replaceAll("-", " ");
+                res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                //log the prompt
+                res.prompts.forEach((prompt, i) => {
+                    if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+                    else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+                    else console.log(chalk.green((i + 1) + ":  " + prompt));
+                });
+                // get the prompt from the user
+                promptChoice = await askMenuOption();
+                // set the prompt answer
+                promptAnswer = res.prompts[parseInt(promptChoice.OPTION) - 1];
+                // set the answers
                 generationsAnswer = parseInt(themeQuestions.GENERATIONS);
                 upscaleAnswer = parseInt(themeQuestions.UPSCALE);
                 variationAnswer = parseInt(themeQuestions.VARIATION);
                 zoomAnswer = parseInt(themeQuestions.ZOOM);
-
+                runAsk = true;
                 break;
             case "7":
                 console.log("Start prompt generation from saved prompt");
+                // print the prompts
+                printPromtptsFile("prompts");
+                // ask for the prompt number
+                let promptChoice2 = await askMenuOption();
+                // set the prompt answer
+                promptAnswer = prompts.prompts[parseInt(promptChoice2.OPTION) - 1];
+                // ask basic questions
+                basicAnswers = await askImageGenQuestions();
+                // set the answers
+                generationsAnswer = parseInt(basicAnswers.GENERATIONS);
+                upscaleAnswer = parseInt(basicAnswers.UPSCALE);
+                variationAnswer = parseInt(basicAnswers.VARIATION);
+                zoomAnswer = parseInt(basicAnswers.ZOOM);
+                runAsk = true;
                 break;
             case "8":
                 console.log("Start prompt generation from questions");
@@ -465,9 +622,11 @@ async function run() {
                 upscaleAnswer = parseInt(promptQuestions.UPSCALE);
                 variationAnswer = parseInt(promptQuestions.VARIATION);
                 zoomAnswer = parseInt(promptQuestions.ZOOM);
+                runAsk = true;
                 break;
             case "9":
                 console.log("Start prompt generation from last questions");
+                runAsk = true;
                 break;
             case "0":
                 console.log("Exit");
@@ -479,27 +638,29 @@ async function run() {
         }
         // prompt the user for some info
 
-        // save the info to the user.json file if needed
-        // ask if ready to run
-        let ready = await readyToRun();
-        if (prompts.options != null) {
-            prompts.options.forEach((option, i) => {
-                if (option.enabled) {
-                    promptAnswer += " --" + option.name + " " + option.value;
-                }
-            });
-        }
-        if (ready.READY == "y" || ready.READY == "Y") {
-            // run the main function
-            await main(promptAnswer, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
-            // print done message
-            printDone();
-            console.log("");
-            for (let i = 0; i < 10; i++) {
-                process.stdout.write(".");
-                await waitSeconds(0.5);
+        if (runAsk) {
+            // ask if ready to run
+            let ready = await readyToRun();
+            if (prompts.options != null) {
+                prompts.options.forEach((option, i) => {
+                    if (option.enabled) {
+                        promptAnswer += " --" + option.name + " " + option.value;
+                    }
+                });
             }
-            console.log("");
+            if (ready.READY == "y" || ready.READY == "Y") {
+                // run the main function
+                await main(promptAnswer, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
+                // print done message
+                printDone();
+                console.log("");
+                for (let i = 0; i < 10; i++) {
+                    process.stdout.write(".");
+                    await waitSeconds(0.5);
+                }
+                console.log("");
+            }
+            runAsk = false;
         }
     }
 }
@@ -528,7 +689,9 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
     let maxZoomsCount = 0;
 
     while (maxGenerationsCount < maxGenerations) {
-        console.log("#1#");
+        maxUpscalesCount = 0;
+        maxVariationsCount = 0;
+        maxZoomsCount = 0;
         console.log("upscaleQueue.length:", upscaleQueue.length);
         console.log("variationQueue.length:", variationQueue.length);
         console.log("zoomQueue.length:", zoomQueue.length);
@@ -548,7 +711,6 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
             if (zoomEnabled) zoomQueue.push(upscaledImg);
             maxUpscalesCount++;
         }
-        console.log("#2#");
         console.log("upscaleQueue.length:", upscaleQueue.length);
         console.log("variationQueue.length:", variationQueue.length);
         console.log("zoomQueue.length:", zoomQueue.length);
@@ -574,7 +736,6 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
                 maxVariationsCount++;
             }
         }
-        console.log("#3#");
         console.log("upscaleQueue.length:", upscaleQueue.length);
         console.log("variationQueue.length:", variationQueue.length);
         console.log("zoomQueue.length:", zoomQueue.length);
