@@ -1,0 +1,6 @@
+user.json
+*node_modules
+*output
+*package-lock.json
+.eslintrc.json
+*vscode
