@@ -1,5 +1,26 @@
 {
     "themes":[
-        "horror","robots"
+        {
+            "keywords":["horror","robots"],
+            "style":"dark"
+        },
+        {
+            "keywords":["cats","funny"],
+            "style":"cartoon"
+        }
+    ],
+    "prompts":[
+        "photo of robots fighting in a futuristic city, in the style of a horror movie poster --ar 7:5",
+        "photo of a cat in a funny pose --ar 1:1"
+    ],
+    "options":[
+        {
+            "ar":"7:5",
+            "enabled":true
+        },
+        {
+            "chaos":"50",
+            "enabled":false
+        }
     ]
 }
