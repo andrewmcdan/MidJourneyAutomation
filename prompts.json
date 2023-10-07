@@ -11,15 +11,18 @@
     ],
     "prompts":[
         "photo of robots fighting in a futuristic city, in the style of a horror movie poster --ar 7:5",
-        "photo of a cat in a funny pose --ar 1:1"
+        "photo of a cat in a funny pose --ar 1:1",
+        "Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. --chaos 50"    
     ],
     "options":[
         {
-            "ar":"7:5",
+            "value":"7:5",
+            "name":"ar",
             "enabled":true
         },
         {
-            "chaos":"50",
+            "value":"50",
+            "name":"chaos",
             "enabled":false
         }
     ]

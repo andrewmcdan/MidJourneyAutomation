@@ -5,7 +5,7 @@ import { MidjourneyDiscordBridge } from "midjourney-discord-bridge";
 
 import axios from "axios";
 import sharp from 'sharp';
-import { s } from "@sapphire/shapeshift";
+//import { s } from "@sapphire/shapeshift";
 import fs from 'fs';
 import { ChatGPTAPI } from 'chatgpt';
 import inquirer from 'inquirer';
@@ -26,10 +26,31 @@ async function sendChatGPTPrompt(prompt) {
             top_p: 0.8
         }
     });
-
-    const res = await chatgpt.sendMessage(prompt);
-    console.log(res.text)
+    let count = 0;
+    const res = await chatgpt.sendMessage(prompt,
+        {
+            onProgress: (partialResponse) => {
+                count++;
+                if(count%2==0) process.stdout.write(".");
+        }
+    });
+    console.log("");
     return res.text;
+}
+
+async function generatePromptFromThemKeywords(theme,count = 10) {
+    console.log("Generating prompts from theme: ", JSON.stringify(theme));
+    let chatPrompt = "your role is design prompts for an AI image generator. Your theme should be based upon the following keywords: ";
+    theme.keywords.forEach((themeKeyword) => {
+        chatPrompt += themeKeyword + ", ";
+    });
+    chatPrompt += ". The selected style is: ";
+    chatPrompt += theme.style;
+    chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";;
+    chatPrompt += "The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. ";
+    let chatResponse = await sendChatGPTPrompt(chatPrompt);
+    //console.log(chatResponse);
+    return chatResponse;
 }
 
 const intro = () => {
@@ -77,6 +98,7 @@ const printMainMenu = () => {
     console.log(chalk.white("5. Start thematic generation from questions"));
     console.log(chalk.white("6. Start prompt generation from saved prompt"));
     console.log(chalk.white("7. Start prompt generation from questions"));
+    console.log(chalk.white("8. Start prompt generation from last questions"));
     console.log(chalk.white("0. Exit"));
 }
 
@@ -133,13 +155,77 @@ const askPromptQuestions = () => {
     return inquirer.prompt(questions);
 }
 
+const askThemeQuestions = () => {
+    const questions = [
+        {
+            name: 'THEME',
+            type: 'input',
+            message: 'What are your theme keywords? (comma separated)'
+        },
+        {
+            name: 'STYLE',
+            type: 'input',
+            message: 'What is your style?'
+        },
+        {
+            name: 'CHATGPTGENERATIONS',
+            type: 'input',
+            message: 'How many prompts do you want to generate with chatgpt? (max 25)'
+        },
+        {
+            name: 'GENERATIONS',
+            type: 'input',
+            message: 'How many times do you want to generate?'
+        },
+        {
+            name: 'UPSCALE',
+            type: 'input',
+            message: 'How many times do you want to upscale?'
+        },
+        {
+            name: 'VARIATION',
+            type: 'input',
+            message: 'How many times do you want to generate a variation?'
+        },
+        {
+            name: 'ZOOM',
+            type: 'input',
+            message: 'How many times do you want to zoom out?'
+        }
+    ];
+    return inquirer.prompt(questions);
+}
+
+const printModifyPromptsMenu = () => {
+    console.log(chalk.yellowBright("Modify Prompts Menu: "));
+    console.log(chalk.white("1. Add prompt"));
+    console.log(chalk.white("2. Remove prompt"));
+    console.log(chalk.white("3. Modify prompt"));
+    console.log(chalk.white("0. Exit"));
+}
+
+const printModifyThemesMenu = () => {
+    console.log(chalk.yellowBright("Modify Themes Menu: "));
+    console.log(chalk.white("1. Add theme"));
+    console.log(chalk.white("2. Remove theme"));
+    console.log(chalk.white("3. Modify theme"));
+    console.log(chalk.white("0. Exit"));
+}
+
+const printModifyOptionsMenu = () => {
+    console.log(chalk.yellowBright("Modify Options Menu: "));
+    console.log(chalk.white("1. Add option"));
+    console.log(chalk.white("2. Remove option"));
+    console.log(chalk.white("3. Modify option"));
+    console.log(chalk.white("0. Exit"));
+}
 
 // run
 async function run() {
     // show script intro
     intro();
     let menuOption = { OPTION: "" };
-    let prompAnswer = "a cute cat";
+    let promptAnswer = "a cute cat";
     let generationsAnswer = 4;
     let upscaleAnswer = 0;
     let variationAnswer = 0;
@@ -168,6 +254,36 @@ async function run() {
                 break;
             case "5":
                 console.log("Start thematic generation from questions");
+                // ask theme questions
+                let themeQuestions = await askThemeQuestions();
+                
+                //split the theme keywords into an array
+                let themeKeywords = themeQuestions.THEME.split(",");
+                // create the theme object
+                let theme = {
+                    keywords: themeKeywords,
+                    style: themeQuestions.STYLE
+                };
+                // generate the prompt from the theme
+                if(themeQuestions.CHATGPTGENERATIONS > 25) themeQuestions.CHATGPTGENERATIONS = 25;
+                let res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
+                res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                //log the prompt
+                res.prompts.forEach((prompt, i) => {
+                    if(parseInt(prompt.substring(0,1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+                    else if(parseInt(prompt.substring(0,2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+                    else console.log(chalk.green((i + 1) + ":  " + prompt));
+                });
+                // get the prompt from the user
+                let promptChoice = await askMenuOption();
+                // set the prompt answer
+                promptAnswer = res.prompts[parseInt(promptChoice.OPTION) - 1];
+                // set the answers
+                generationsAnswer = parseInt(themeQuestions.GENERATIONS);
+                upscaleAnswer = parseInt(themeQuestions.UPSCALE);
+                variationAnswer = parseInt(themeQuestions.VARIATION);
+                zoomAnswer = parseInt(themeQuestions.ZOOM);
+
                 break;
             case "6":
                 console.log("Start prompt generation from saved prompt");                
@@ -177,12 +293,14 @@ async function run() {
                 // ask prompt questions
                 let promptQuestions = await askPromptQuestions();
                 // set the answers
-                prompAnswer = promptQuestions.PROMPT;
+                promptAnswer = promptQuestions.PROMPT;
                 generationsAnswer = parseInt(promptQuestions.GENERATIONS);
                 upscaleAnswer = parseInt(promptQuestions.UPSCALE);
                 variationAnswer = parseInt(promptQuestions.VARIATION);
                 zoomAnswer = parseInt(promptQuestions.ZOOM);
-
+                break;
+            case "8":
+                console.log("Start prompt generation from last questions");
                 break;
             case "0":
                 console.log("Exit");
@@ -197,9 +315,16 @@ async function run() {
         // save the info to the user.json file if needed
         // ask if ready to run
         let ready = await readyToRun();
+        if(prompts.options != null) {
+            prompts.options.forEach((option, i) => {
+                if(option.enabled){
+                    promptAnswer += " --" + option.name + " " + option.value;
+                }
+            });
+        }
         if (ready.READY == "y" || ready.READY == "Y") {
             // run the main function
-            await main(prompAnswer, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
+            await main(promptAnswer, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
         }
     }
 }
@@ -207,17 +332,12 @@ async function run() {
 async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4) {
     const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
 
-    let img = await mj.generateImage("Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. --ar 7:5 --chaos 50");
+    let img = await mj.generateImage(MJprompt);
     console.log("Midjourney image generation completed:", img.url);
 
     // Do something with the image
     makeFileFromIMGobj(img);
-    // const response = await axios.get(img.url, { responseType: 'arraybuffer' });
-    // const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
-    // const regex = new RegExp(regexString);
-    // const matches = regex.exec(img.url);
-    // const filename = matches[0];
-    // await sharp(response.data).toFile(filename + '.png');
+
     let upscaleQueue = [];
     upscaleQueue.push(img);
     let variationQueue = [];
@@ -227,13 +347,17 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
     let zoomEnabled = true;
     let variationEnabled = false;
 
-    let count = 0;
-    while (count < 100) {
+    let maxGenerationsCount = 0;
+    let maxUpscalesCount = 0;
+    let maxVariationsCount = 0;
+    let maxZoomsCount = 0;
+
+    while (maxGenerationsCount < maxGenerations) {
         console.log("#1#");
         console.log("upscaleQueue.length:", upscaleQueue.length);
         console.log("variationQueue.length:", variationQueue.length);
         console.log("zoomQueue.length:", zoomQueue.length);
-        while (upscaleQueue.length > 0) {
+        while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
             let img = upscaleQueue.shift();
             let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
             makeFileFromIMGobj(upscaledImg);
@@ -247,13 +371,14 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
             upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
             makeFileFromIMGobj(upscaledImg);
             if (zoomEnabled) zoomQueue.push(upscaledImg);
+            maxUpscalesCount++;
         }
         console.log("#2#");
         console.log("upscaleQueue.length:", upscaleQueue.length);
         console.log("variationQueue.length:", variationQueue.length);
         console.log("zoomQueue.length:", zoomQueue.length);
         if (variationEnabled) {
-            while (variationQueue.length > 0) {
+            while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
                 let img = variationQueue.shift();
                 let variationImg = await mj.variation(img, 1, img.prompt);
                 makeFileFromIMGobj(variationImg);
@@ -271,6 +396,7 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
                 //if(variationEnabled) variationQueue.push(variationImg);
+                maxVariationsCount++;
             }
         }
         console.log("#3#");
@@ -278,16 +404,16 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
         console.log("variationQueue.length:", variationQueue.length);
         console.log("zoomQueue.length:", zoomQueue.length);
         if (zoomEnabled) {
-            while (zoomQueue.length > 0) {
+            while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
                 let img = zoomQueue.shift();
                 let zoomedImg = await mj.zoomOut(img, img.prompt);
                 makeFileFromIMGobj(zoomedImg);
                 if (variationEnabled) variationQueue.push(zoomedImg);
                 upscaleQueue.push(zoomedImg);
+                maxZoomsCount++;
             }
         }
-        count++;
-        console.log({ count });
+        maxGenerationsCount++;
     }
     mj.close()
 }
