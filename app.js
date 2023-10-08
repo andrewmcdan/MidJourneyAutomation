@@ -40,14 +40,14 @@ async function sendChatGPTPrompt(prompt) {
 
 async function generatePromptFromThemKeywords(theme, count = 10) {
     console.log("Generating prompts from theme: ", JSON.stringify(theme));
-    let chatPrompt = "your role is design prompts for an AI image generator. Your theme should be based upon the following keywords: ";
+    let chatPrompt = "your role is design prompts for an AI image generator. Your theme should be based upon the following keywords (but must be PG-13 acceptable): ";
     theme.keywords.forEach((themeKeyword) => {
         chatPrompt += themeKeyword + ", ";
     });
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
     chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";;
-    chatPrompt += "The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. ";
+    chatPrompt += "The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     //console.log(chatResponse);
     return chatResponse;
@@ -330,6 +330,16 @@ async function run() {
     let variationAnswer = 0;
     let zoomAnswer = 0;
 
+    let themeKeywords;
+    let themeChoice;
+    let basicAnswers;
+    let theme;
+    let res;
+    let promptChoice;
+    let addOption;
+    let option;
+    let removeTheme;
+
     let runAsk = false;
 
     while (menuOption.OPTION != "0") {
@@ -425,7 +435,7 @@ async function run() {
                         case "2":
                             console.log("Remove theme");
                             // ask for the theme number
-                            let removeTheme = await askMenuOption();
+                            removeTheme = await askMenuOption();
                             // remove the theme from the prompts object
                             if (prompts.themes == null) prompts.themes = [];
                             prompts.themes.splice(parseInt(removeTheme.OPTION) - 1, 1);
@@ -474,11 +484,11 @@ async function run() {
                         case "1":
                             console.log("Add option");
                             // ask for the option
-                            let addOption = await askOptionQuestions();
+                            addOption = await askOptionQuestions();
                             // add the option to the prompts object
                             if (prompts.options == null) prompts.options = [];
                             // create the option object
-                            let option = {
+                            option = {
                                 name: addOption.NAME,
                                 value: addOption.VALUE,
                                 enabled: addOption.ENABLED == "y" || addOption.ENABLED == "Y" ? true : false
@@ -529,17 +539,17 @@ async function run() {
                 // print the themes
                 printPromtptsFile("themes");
                 // ask for the theme number
-                let themeChoice = await askMenuOption();
-                let basicAnswers = await askImageGenQuestions();
+                themeChoice = await askMenuOption();
+                basicAnswers = await askImageGenQuestions();
                 //split the theme keywords into an array
-                let themeKeywords = prompts.themes[parseInt(themeChoice.OPTION) - 1].keywords;
+                themeKeywords = prompts.themes[parseInt(themeChoice.OPTION) - 1].keywords;
                 // create the theme object
-                let theme = {
+                theme = {
                     keywords: themeKeywords,
                     style: prompts.themes[parseInt(themeChoice.OPTION) - 1].style
                 };
                 // generate the prompt from the theme
-                let res = await generatePromptFromThemKeywords(theme);
+                res = await generatePromptFromThemKeywords(theme);
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
                 res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
@@ -550,7 +560,7 @@ async function run() {
                     else console.log(chalk.green((i + 1) + ":  " + prompt));
                 });
                 // get the prompt from the user
-                let promptChoice = await askMenuOption();
+                promptChoice = await askMenuOption();
                 // set the prompt answer
                 promptAnswer = res.prompts[parseInt(promptChoice.OPTION) - 1];
                 // set the answers
@@ -648,6 +658,7 @@ async function run() {
                     }
                 });
             }
+
             if (ready.READY == "y" || ready.READY == "Y") {
                 // run the main function
                 await main(promptAnswer, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
@@ -668,7 +679,7 @@ async function run() {
 async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4) {
     const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
 
-    let img = await mj.generateImage(MJprompt);
+    let img = await mj.generateImage(MJprompt,(obj)=>{process.stdout.write(".")});
     console.log("Midjourney image generation completed:", img.url);
 
     // Do something with the image
@@ -681,7 +692,7 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
     let zoomQueue = [];
 
     let zoomEnabled = true;
-    let variationEnabled = false;
+    let variationEnabled = true;
 
     let maxGenerationsCount = 0;
     let maxUpscalesCount = 0;
@@ -720,19 +731,19 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
                 let variationImg = await mj.variation(img, 1, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                //if(variationEnabled) variationQueue.push(variationImg);
+                if(variationEnabled) variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 2, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                //if(variationEnabled) variationQueue.push(variationImg);
+                if(variationEnabled) variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 3, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                //if(variationEnabled) variationQueue.push(variationImg);
+                if(variationEnabled) variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 4, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                //if(variationEnabled) variationQueue.push(variationImg);
+                if(variationEnabled) variationQueue.push(variationImg);
                 maxVariationsCount++;
             }
         }
