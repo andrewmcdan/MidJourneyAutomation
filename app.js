@@ -17,6 +17,7 @@ const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 // get data from prompts file
 let prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
 
+// send a prompt to chatgpt and return the response
 async function sendChatGPTPrompt(prompt) {
     const chatgpt = new ChatGPTAPI({
         apiKey: userConfig.openai_key,
@@ -38,9 +39,10 @@ async function sendChatGPTPrompt(prompt) {
     return res.text;
 }
 
+// generate a prompt from a theme object
 async function generatePromptFromThemKeywords(theme, count = 10) {
     console.log("Generating prompts from theme: ", JSON.stringify(theme));
-    let chatPrompt = "your role is design prompts for an AI image generator. Your theme should be based upon the following keywords (but must be PG-13 acceptable): ";
+    let chatPrompt = "your role is design prompts for an AI image generator. Your theme should be based upon the following keywords but you can get creative with it: ";
     theme.keywords.forEach((themeKeyword) => {
         chatPrompt += themeKeyword + ", ";
     });
@@ -222,7 +224,7 @@ const askThemeQuestions = () => {
         {
             name: 'CHATGPTGENERATIONS',
             type: 'input',
-            message: 'How many prompts do you want to generate with chatgpt? (max 25)'
+            message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'
         },
         {
             name: 'GENERATIONS',
@@ -250,6 +252,11 @@ const askThemeQuestions = () => {
 
 const askImageGenQuestions = () => {
     const questions = [
+        {
+            name: 'CHATGPTGENERATIONS',
+            type: 'input',
+            message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'
+        },
         {
             name: 'GENERATIONS',
             type: 'input',
@@ -324,7 +331,8 @@ async function run() {
     // show script intro
     intro();
     let menuOption = { OPTION: "" };
-    let promptAnswer = "a cute cat";
+    let promptAnswer = [];
+    promptAnswer.push("a cute cat");
     let generationsAnswer = 4;
     let upscaleAnswer = 0;
     let variationAnswer = 0;
@@ -505,7 +513,7 @@ async function run() {
                             if (prompts.options == null) prompts.options = [];
                             prompts.options.splice(parseInt(removeOption.OPTION) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));                            
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
                         case "3":
                             console.log("Modify option");
@@ -523,7 +531,7 @@ async function run() {
                             };
                             prompts.options[parseInt(modifyOption.OPTION) - 1] = modifyOptionObject;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));                            
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
                         case "0":
                             console.log("Exit");
@@ -548,10 +556,15 @@ async function run() {
                     keywords: themeKeywords,
                     style: prompts.themes[parseInt(themeChoice.OPTION) - 1].style
                 };
+                if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
-                res = await generatePromptFromThemKeywords(theme);
+                res = await generatePromptFromThemKeywords(theme, basicAnswers.CHATGPTGENERATIONS);
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
+                if(res.indexOf("{") == -1) {
+                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                    break;
+                }
                 res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
                 //log the prompt
                 res.prompts.forEach((prompt, i) => {
@@ -560,9 +573,13 @@ async function run() {
                     else console.log(chalk.green((i + 1) + ":  " + prompt));
                 });
                 // get the prompt from the user
-                promptChoice = await askMenuOption();
+                //promptChoice = await askMenuOption();
                 // set the prompt answer
-                promptAnswer = res.prompts[parseInt(promptChoice.OPTION) - 1];
+                //promptAnswer = res.prompts[ Math.min(parseInt(promptChoice.OPTION) - 1, res.prompts.length - 1)];
+                promptAnswer = [];
+                res.prompts.forEach((prompt, i) => {
+                    promptAnswer.push(prompt);
+                });
                 // set the answers
                 generationsAnswer = parseInt(basicAnswers.GENERATIONS);
                 upscaleAnswer = parseInt(basicAnswers.UPSCALE);
@@ -583,7 +600,7 @@ async function run() {
                     style: themeQuestions.STYLE
                 };
                 // generate the prompt from the theme
-                if (themeQuestions.CHATGPTGENERATIONS > 25) themeQuestions.CHATGPTGENERATIONS = 25;
+                if (themeQuestions.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) themeQuestions.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
@@ -595,9 +612,13 @@ async function run() {
                     else console.log(chalk.green((i + 1) + ":  " + prompt));
                 });
                 // get the prompt from the user
-                promptChoice = await askMenuOption();
+                //promptChoice = await askMenuOption();
                 // set the prompt answer
-                promptAnswer = res.prompts[parseInt(promptChoice.OPTION) - 1];
+                //promptAnswer = res.prompts[Math.min(parseInt(promptChoice.OPTION) - 1, res.prompts.length - 1)];
+                promptAnswer = [];
+                res.prompts.forEach((prompt, i) => {
+                    promptAnswer.push(prompt);
+                });
                 // set the answers
                 generationsAnswer = parseInt(themeQuestions.GENERATIONS);
                 upscaleAnswer = parseInt(themeQuestions.UPSCALE);
@@ -612,7 +633,7 @@ async function run() {
                 // ask for the prompt number
                 let promptChoice2 = await askMenuOption();
                 // set the prompt answer
-                promptAnswer = prompts.prompts[parseInt(promptChoice2.OPTION) - 1];
+                promptAnswer[0] = prompts.prompts[parseInt(promptChoice2.OPTION) - 1];
                 // ask basic questions
                 basicAnswers = await askImageGenQuestions();
                 // set the answers
@@ -627,7 +648,7 @@ async function run() {
                 // ask prompt questions
                 let promptQuestions = await askPromptQuestions();
                 // set the answers
-                promptAnswer = promptQuestions.PROMPT;
+                promptAnswer[0] = promptQuestions.PROMPT;
                 generationsAnswer = parseInt(promptQuestions.GENERATIONS);
                 upscaleAnswer = parseInt(promptQuestions.UPSCALE);
                 variationAnswer = parseInt(promptQuestions.VARIATION);
@@ -649,27 +670,32 @@ async function run() {
         // prompt the user for some info
 
         if (runAsk) {
-            // ask if ready to run
+            let promptCount = promptAnswer.length;
+            let prompt = "";
             let ready = await readyToRun();
             if (prompts.options != null) {
                 prompts.options.forEach((option, i) => {
                     if (option.enabled) {
-                        promptAnswer += " --" + option.name + " " + option.value;
+                        prompt += " --" + option.name + " " + option.value;
                     }
                 });
             }
 
-            if (ready.READY == "y" || ready.READY == "Y") {
-                // run the main function
-                await main(promptAnswer, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
-                // print done message
-                printDone();
-                console.log("");
-                for (let i = 0; i < 10; i++) {
-                    process.stdout.write(".");
-                    await waitSeconds(0.5);
+            for (let i = 0; i < promptCount; i++) {
+                prompt = promptAnswer[i];
+                // ask if ready to run
+                if (ready.READY == "y" || ready.READY == "Y") {
+                    // run the main function
+                    await main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
+                    // print done message
+                    printDone();
+                    console.log("");
+                    for (let i = 0; i < 10; i++) {
+                        process.stdout.write(".");
+                        await waitSeconds(0.5);
+                    }
+                    console.log("");
                 }
-                console.log("");
             }
             runAsk = false;
         }
@@ -679,7 +705,7 @@ async function run() {
 async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4) {
     const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
 
-    let img = await mj.generateImage(MJprompt,(obj)=>{process.stdout.write(".")});
+    let img = await mj.generateImage(MJprompt, (obj) => { process.stdout.write(".") });
     console.log("Midjourney image generation completed:", img.url);
 
     // Do something with the image
@@ -731,19 +757,19 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
                 let variationImg = await mj.variation(img, 1, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if(variationEnabled) variationQueue.push(variationImg);
+                if (variationEnabled) variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 2, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if(variationEnabled) variationQueue.push(variationImg);
+                if (variationEnabled) variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 3, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if(variationEnabled) variationQueue.push(variationImg);
+                if (variationEnabled) variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 4, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if(variationEnabled) variationQueue.push(variationImg);
+                if (variationEnabled) variationQueue.push(variationImg);
                 maxVariationsCount++;
             }
         }
