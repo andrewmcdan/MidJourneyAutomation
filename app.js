@@ -11,6 +11,7 @@ import { ChatGPTAPI } from 'chatgpt';
 import inquirer from 'inquirer';
 import chalk from 'chalk';
 import figlet from 'figlet';
+import stringifyObject from 'stringify-object';
 
 // get user config from file
 const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
@@ -49,7 +50,7 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
     chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";;
-    chatPrompt += "The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
+    chatPrompt += "Prefer succintness over verbosity. Be sure to specify the art style. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     //console.log(chatResponse);
     return chatResponse;
@@ -126,6 +127,7 @@ const printMainMenu = () => {
     console.log(chalk.white("7. Start prompt generation from saved prompt"));
     console.log(chalk.white("8. Start prompt generation from questions"));
     console.log(chalk.white("9. Start prompt generation from last questions"));
+    console.log(chalk.white("10. Start infinite zoom"));
     console.log(chalk.white("0. Exit"));
 }
 
@@ -140,11 +142,37 @@ const askMenuOption = () => {
     return inquirer.prompt(questions);
 }
 
+const askInfinteZoomQuestions = () => {
+    const questions = [
+        {
+            name: 'SENDTOCHATGPT',
+            type: 'confirm',
+            message: 'Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ. (y/n)'
+        },
+        {
+            name: 'SAVEQUADS',
+            type: 'confirm',
+            message: 'Do you want to save the quad files? (y/n)'
+        },
+        {
+            name: 'CUSTOMFILENAME',
+            type: 'confirm',
+            message: 'Use infinizoom folder and sequential naming? (y/n)'
+        },
+        {
+            name: 'PROMPT',
+            type: 'input',
+            message: 'What is your prompt?'
+        }
+    ];
+    return inquirer.prompt(questions);
+}
+
 const readyToRun = () => {
     const questions = [
         {
             name: 'READY',
-            type: 'input',
+            type: 'confirm',
             message: 'Ready to run? (y/n)'
         }
     ];
@@ -161,22 +189,22 @@ const askPromptQuestions = () => {
         {
             name: 'GENERATIONS',
             type: 'input',
-            message: 'How many times do you want to generate?'
+            message: 'How many runs per prompt do you want to run?'
         },
         {
             name: 'UPSCALE',
             type: 'input',
-            message: 'How many times do you want to upscale?'
+            message: 'How many generations of upscaling do you want to allow?'
         },
         {
             name: 'VARIATION',
             type: 'input',
-            message: 'How many times do you want to generate a variation?'
+            message: 'How many generations of variations do you want to allow?'
         },
         {
             name: 'ZOOM',
             type: 'input',
-            message: 'How many times do you want to zoom out?'
+            message: 'How many generations of zoom out do you want to allow?'
         }
     ];
     return inquirer.prompt(questions);
@@ -229,22 +257,22 @@ const askThemeQuestions = () => {
         {
             name: 'GENERATIONS',
             type: 'input',
-            message: 'How many times do you want to generate?'
+            message: 'How many runs per prompt do you want to run?'
         },
         {
             name: 'UPSCALE',
             type: 'input',
-            message: 'How many times do you want to upscale?'
+            message: 'How many generations of upscaling do you want to allow?'
         },
         {
             name: 'VARIATION',
             type: 'input',
-            message: 'How many times do you want to generate a variation?'
+            message: 'How many generations of variations do you want to allow?'
         },
         {
             name: 'ZOOM',
             type: 'input',
-            message: 'How many times do you want to zoom out?'
+            message: 'How many generations of zoom out do you want to allow?'
         }
     ];
     return inquirer.prompt(questions);
@@ -260,22 +288,22 @@ const askImageGenQuestions = () => {
         {
             name: 'GENERATIONS',
             type: 'input',
-            message: 'How many times do you want to generate?'
+            message: 'How many runs per prompt do you want to run?'
         },
         {
             name: 'UPSCALE',
             type: 'input',
-            message: 'How many times do you want to upscale?'
+            message: 'How many generations of upscaling do you want to allow?'
         },
         {
             name: 'VARIATION',
             type: 'input',
-            message: 'How many times do you want to generate a variation?'
+            message: 'How many generations of variations do you want to allow?'
         },
         {
             name: 'ZOOM',
             type: 'input',
-            message: 'How many times do you want to zoom out?'
+            message: 'How many generations of zoom out do you want to allow?'
         }
     ];
     return inquirer.prompt(questions);
@@ -561,7 +589,7 @@ async function run() {
                 res = await generatePromptFromThemKeywords(theme, basicAnswers.CHATGPTGENERATIONS);
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
-                if(res.indexOf("{") == -1) {
+                if (res.indexOf("{") == -1) {
                     console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
                     break;
                 }
@@ -659,6 +687,17 @@ async function run() {
                 console.log("Start prompt generation from last questions");
                 runAsk = true;
                 break;
+            case "10":
+                console.log("Start infinite zoom");
+                let infiniteZoomQuestions = await askInfinteZoomQuestions();
+                if(infiniteZoomQuestions.SENDTOCHATGPT){
+                    let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
+                    res = res.replaceAll("\"", "");
+                    await infiniteZoom(res,infiniteZoomQuestions.SAVEQUADS);
+                }else{
+                    await infiniteZoom(infiniteZoomQuestions.PROMPT,infiniteZoomQuestions.SAVEQUADS);
+                }
+                break;
             case "0":
                 console.log("Exit");
                 return;
@@ -673,24 +712,32 @@ async function run() {
             let promptCount = promptAnswer.length;
             let prompt = "";
             let ready = await readyToRun();
+            let relaxedEabledFromUserConfig = false;
+            let promptSuffix = "";
+
             if (prompts.options != null) {
                 prompts.options.forEach((option, i) => {
                     if (option.enabled) {
-                        prompt += " --" + option.name + " " + option.value;
+                        promptSuffix += " --" + option.name + " " + option.value;
+                        if (option.name == "relax") relaxedEabledFromUserConfig = true;
                     }
                 });
             }
 
+            // if the relaxed setting isn't set in the prompts file, check the user config
+            if (!relaxedEabledFromUserConfig && userConfig.relaxedEnabled) promptSuffix += " --relax";
+
             for (let i = 0; i < promptCount; i++) {
                 prompt = promptAnswer[i];
-                // ask if ready to run
-                if (ready.READY == "y" || ready.READY == "Y") {
+                prompt += promptSuffix;
+                if (ready.READY === true) {
+                    console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                     // run the main function
-                    await main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer);
+                    await main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
                     // print done message
                     printDone();
                     console.log("");
-                    for (let i = 0; i < 10; i++) {
+                    for (let i = 0; i < (userConfig.wait_time_after_done < 5 ? 5 : userConfig.wait_time_after_done * 2); i++) {
                         process.stdout.write(".");
                         await waitSeconds(0.5);
                     }
@@ -702,86 +749,115 @@ async function run() {
     }
 }
 
-async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4) {
+async function infiniteZoom(MJprompt,saveQuadFiles = true, autoNameFiles = false){
     const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
+    let img = await mj.generateImage(MJprompt, (obj, progress) => {
+        process.stdout.write(progress + "%   ");
+    });
+    console.log("\nInitial Midjourney image generation completed\n");
+    if(saveQuadFiles) makeFileFromIMGobj(img);
+    let imgToZoom = img;
+    let imgToScale = img;
+    let filename = "infinizoom/";
+    let fileCount = 1;
+    // create string from filecount with leading zeros
+    let fileCountString = fileCount.toString().padStart(4, "0");
+    filename += fileCountString;
+    while(true){
+        // generate random number between 1 and 4
+        let random1to4 = Math.floor(Math.random() * 4) + 1;
+        imgToZoom = await mj.upscaleImage(imgToScale, random1to4, img.prompt);
+        makeFileFromIMGobj(imgToZoom);
+        imgToScale = await mj.zoomOut(imgToZoom, img.prompt);
+        if(saveQuadFiles) makeFileFromIMGobj(imgToScale, autoNameFiles?filename:"");
+    }
+}
 
-    let img = await mj.generateImage(MJprompt, (obj) => { process.stdout.write(".") });
-    console.log("Midjourney image generation completed:", img.url);
-
-    // Do something with the image
-    makeFileFromIMGobj(img);
-
-    let upscaleQueue = [];
-    upscaleQueue.push(img);
-    let variationQueue = [];
-    variationQueue.push(img);
-    let zoomQueue = [];
-
-    let zoomEnabled = true;
-    let variationEnabled = true;
-
+async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false) {
+    maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
+    const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
     let maxGenerationsCount = 0;
-    let maxUpscalesCount = 0;
-    let maxVariationsCount = 0;
-    let maxZoomsCount = 0;
+    if (printInfo) {
+        let info = await mj.getInfo();
+        console.log("Midjourney info:\n\n", info.embeds[0].description);
+    }
 
     while (maxGenerationsCount < maxGenerations) {
-        maxUpscalesCount = 0;
-        maxVariationsCount = 0;
-        maxZoomsCount = 0;
-        console.log("upscaleQueue.length:", upscaleQueue.length);
-        console.log("variationQueue.length:", variationQueue.length);
-        console.log("zoomQueue.length:", zoomQueue.length);
-        while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
-            let img = upscaleQueue.shift();
-            let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
-            makeFileFromIMGobj(upscaledImg);
-            if (zoomEnabled) zoomQueue.push(upscaledImg);
-            upscaledImg = await mj.upscaleImage(img, 2, img.prompt);
-            makeFileFromIMGobj(upscaledImg);
-            if (zoomEnabled) zoomQueue.push(upscaledImg);
-            upscaledImg = await mj.upscaleImage(img, 3, img.prompt);
-            makeFileFromIMGobj(upscaledImg);
-            if (zoomEnabled) zoomQueue.push(upscaledImg);
-            upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
-            makeFileFromIMGobj(upscaledImg);
-            if (zoomEnabled) zoomQueue.push(upscaledImg);
-            maxUpscalesCount++;
-        }
-        console.log("upscaleQueue.length:", upscaleQueue.length);
-        console.log("variationQueue.length:", variationQueue.length);
-        console.log("zoomQueue.length:", zoomQueue.length);
-        if (variationEnabled) {
+        let img = await mj.generateImage(MJprompt, (obj, progress) => {
+            process.stdout.write(progress + "%   ");
+        });
+        //console.log("\nMidjourney image generation completed:", img.url);
+        console.log("\nInitial Midjourney image generation completed\n");
+
+        // Do something with the image
+        makeFileFromIMGobj(img);
+
+        let upscaleQueue = [];
+        upscaleQueue.push(img);
+        let variationQueue = [];
+        variationQueue.push(img);
+        let zoomQueue = [];
+        let maxUpscalesCount = 0;
+        let maxVariationsCount = 0;
+        let maxZoomsCount = 0;
+        let loop = [true,true,true];
+
+        // loop as long as there are images in the queue and we haven't reached the max number of generations
+        while (loop[0] || loop[1] || loop[2]){
+            loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
+            loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
+            loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
+            console.log("Processing request queues....");
+            //console.log("upscaleQueue.length:", upscaleQueue.length);
+            //console.log("variationQueue.length:", variationQueue.length);
+            //console.log("zoomQueue.length:", zoomQueue.length);
+            while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
+                let img = upscaleQueue.shift();
+                let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
+                makeFileFromIMGobj(upscaledImg);
+                zoomQueue.push(upscaledImg);
+                upscaledImg = await mj.upscaleImage(img, 2, img.prompt);
+                makeFileFromIMGobj(upscaledImg);
+                zoomQueue.push(upscaledImg);
+                upscaledImg = await mj.upscaleImage(img, 3, img.prompt);
+                makeFileFromIMGobj(upscaledImg);
+                zoomQueue.push(upscaledImg);
+                upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
+                makeFileFromIMGobj(upscaledImg);
+                zoomQueue.push(upscaledImg);
+                maxUpscalesCount++;
+            }
+            //console.log("upscaleQueue.length:", upscaleQueue.length);
+            //console.log("variationQueue.length:", variationQueue.length);
+            //console.log("zoomQueue.length:", zoomQueue.length);
             while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
                 let img = variationQueue.shift();
                 let variationImg = await mj.variation(img, 1, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if (variationEnabled) variationQueue.push(variationImg);
+                variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 2, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if (variationEnabled) variationQueue.push(variationImg);
+                variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 3, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if (variationEnabled) variationQueue.push(variationImg);
+                variationQueue.push(variationImg);
                 variationImg = await mj.variation(img, 4, img.prompt);
                 makeFileFromIMGobj(variationImg);
                 upscaleQueue.push(variationImg);
-                if (variationEnabled) variationQueue.push(variationImg);
+                variationQueue.push(variationImg);
                 maxVariationsCount++;
             }
-        }
-        console.log("upscaleQueue.length:", upscaleQueue.length);
-        console.log("variationQueue.length:", variationQueue.length);
-        console.log("zoomQueue.length:", zoomQueue.length);
-        if (zoomEnabled) {
+            //console.log("upscaleQueue.length:", upscaleQueue.length);
+            //console.log("variationQueue.length:", variationQueue.length);
+            //console.log("zoomQueue.length:", zoomQueue.length);
             while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
                 let img = zoomQueue.shift();
                 let zoomedImg = await mj.zoomOut(img, img.prompt);
                 makeFileFromIMGobj(zoomedImg);
-                if (variationEnabled) variationQueue.push(zoomedImg);
+                variationQueue.push(zoomedImg);
                 upscaleQueue.push(zoomedImg);
                 maxZoomsCount++;
             }
@@ -793,11 +869,14 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
 
 run();
 
-async function makeFileFromIMGobj(img) {
-    const response = await axios.get(img.url, { responseType: 'arraybuffer' });
-    const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
-    const regex = new RegExp(regexString);
-    const matches = regex.exec(img.url);
-    const filename = matches[0];
+async function makeFileFromIMGobj(img,_fileName) {
+    let filename = _fileName;
+    if(_fileName == "") {
+        const response = await axios.get(img.url, { responseType: 'arraybuffer' });
+        const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
+        const regex = new RegExp(regexString);
+        const matches = regex.exec(img.url);
+        filename = matches[0];
+    }
     await sharp(response.data).toFile("output/" + filename + '.png');
 }

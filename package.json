@@ -19,6 +19,7 @@
     "midjourney-discord-bridge": "github:andrewmcdan/midjourney-discord-bridge",
     "sharp": "^0.32.6",
     "streamsearch": "^1.1.0",
+    "stringify-object": "^5.0.0",
     "ts-mixer": "^6.0.3",
     "tslib": "^2.6.2",
     "undici": "^5.22.1",
