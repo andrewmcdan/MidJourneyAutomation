@@ -12,11 +12,88 @@ import inquirer from 'inquirer';
 import chalk from 'chalk';
 import figlet from 'figlet';
 import stringifyObject from 'stringify-object';
+import Discordie from "discordie";
+
+var DiscordEvents = Discordie.Events;
+var DiscordClient = new Discordie();
+var DiscrodieReady = false;
+
+var guild_id_from_discordie = "";
+var channel_id_from_discordie = "";
 
 // get user config from file
 const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 // get data from prompts file
 let prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
+
+DiscordClient.connect({
+    token: userConfig.token
+});
+
+DiscordClient.Dispatcher.on(DiscordEvents.GATEWAY_READY, e => {
+    console.log("Connected as: " + DiscordClient.User.username);
+    DiscrodieReady = true;
+});
+
+DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
+    if (e.message.content == "ping")
+        e.message.channel.sendMessage("pong");
+});
+
+async function setup(){
+    // wait for discordie to be ready
+    console.log("Waiting for Discordie to be ready...");
+    while(!DiscrodieReady){
+        await waitSeconds(1);
+    }
+    // get list of guilds
+    let guilds = await DiscordClient.Guilds.toArray();
+
+    const guildQuestion = [
+        {
+            name: 'GUILD',
+            type: 'list',
+            message: 'What is server name?',
+            choices: guilds
+        }
+    ];
+    
+    // ask for the guild
+    let guildAnswer = await inquirer.prompt(guildQuestion);
+
+    // find the guild object from the answer name
+    let guild;
+    guilds.forEach((g, i) => {
+        if(g.name == guildAnswer.GUILD) guild = guilds[i];
+    });
+
+    // get list of channels
+    let channels = await DiscordClient.Channels.textForGuild(guild);
+    
+    const channelQuestion = [
+        {
+            name: 'CHANNEL',
+            type: 'list',
+            message: 'What is channel name?',
+            choices: channels
+        }
+    ];
+
+    // ask for the channel
+    let channelAnswer = await inquirer.prompt(channelQuestion);
+
+    // find the channel object from the answer name
+    let channel;
+    channels.forEach((c, i) => {
+        if(c.name == channelAnswer.CHANNEL) channel = channels[i];
+    });
+
+    // set the guild id and channel id
+    guild_id_from_discordie = guild.id;
+    channel_id_from_discordie = channel.id;
+    console.log("Shutting down Discord client...");
+    await DiscordClient.disconnect();
+}
 
 // send a prompt to chatgpt and return the response
 async function sendChatGPTPrompt(prompt) {
@@ -357,7 +434,6 @@ const printModifyOptionsMenu = () => {
 // run
 async function run() {
     // show script intro
-    intro();
     let menuOption = { OPTION: "" };
     let promptAnswer = [];
     promptAnswer.push("a cute cat");
@@ -690,12 +766,12 @@ async function run() {
             case "10":
                 console.log("Start infinite zoom");
                 let infiniteZoomQuestions = await askInfinteZoomQuestions();
-                if(infiniteZoomQuestions.SENDTOCHATGPT){
+                if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    await infiniteZoom(res,infiniteZoomQuestions.SAVEQUADS);
-                }else{
-                    await infiniteZoom(infiniteZoomQuestions.PROMPT,infiniteZoomQuestions.SAVEQUADS);
+                    await infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME);
+                } else {
+                    await infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME);
                 }
                 break;
             case "0":
@@ -749,33 +825,35 @@ async function run() {
     }
 }
 
-async function infiniteZoom(MJprompt,saveQuadFiles = true, autoNameFiles = false){
+async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false) {
     const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
     let img = await mj.generateImage(MJprompt, (obj, progress) => {
         process.stdout.write(progress + "%   ");
     });
     console.log("\nInitial Midjourney image generation completed\n");
-    if(saveQuadFiles) makeFileFromIMGobj(img);
+    if (saveQuadFiles) makeFileFromIMGobj(img);
     let imgToZoom = img;
     let imgToScale = img;
-    let filename = "infinizoom/";
+    let filenameBase = "infinizoom/";
     let fileCount = 1;
-    // create string from filecount with leading zeros
-    let fileCountString = fileCount.toString().padStart(4, "0");
-    filename += fileCountString;
-    while(true){
+
+    while (true) {
+        let fileCountString = fileCount.toString().padStart(4, "0");
+        let filename = filenameBase + fileCountString;
         // generate random number between 1 and 4
         let random1to4 = Math.floor(Math.random() * 4) + 1;
         imgToZoom = await mj.upscaleImage(imgToScale, random1to4, img.prompt);
-        makeFileFromIMGobj(imgToZoom);
+        makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "");
         imgToScale = await mj.zoomOut(imgToZoom, img.prompt);
-        if(saveQuadFiles) makeFileFromIMGobj(imgToScale, autoNameFiles?filename:"");
+        if (saveQuadFiles) makeFileFromIMGobj(imgToScale, autoNameFiles ? filename : "");
+        fileCount++;
     }
 }
 
 async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false) {
     maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
-    const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
+    const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
+    //const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
     let maxGenerationsCount = 0;
     if (printInfo) {
         let info = await mj.getInfo();
@@ -800,10 +878,10 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
         let maxUpscalesCount = 0;
         let maxVariationsCount = 0;
         let maxZoomsCount = 0;
-        let loop = [true,true,true];
+        let loop = [true, true, true];
 
         // loop as long as there are images in the queue and we haven't reached the max number of generations
-        while (loop[0] || loop[1] || loop[2]){
+        while (loop[0] || loop[1] || loop[2]) {
             loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
             loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
             loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
@@ -867,16 +945,22 @@ async function main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariatio
     mj.close()
 }
 
-run();
+intro();
+await setup();
+await run();
+console.log("Done. Goodbye!");
 
-async function makeFileFromIMGobj(img,_fileName) {
-    let filename = _fileName;
-    if(_fileName == "") {
+async function makeFileFromIMGobj(img, filename = "") {
+    if (filename == "") {
         const response = await axios.get(img.url, { responseType: 'arraybuffer' });
         const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
         const regex = new RegExp(regexString);
         const matches = regex.exec(img.url);
         filename = matches[0];
+        await sharp(response.data).toFile("output/" + filename + '.png');
+    } else {
+        const response = await axios.get(img.url, { responseType: 'arraybuffer' });
+        await sharp(response.data).toFile("output/" + filename + '.png');
     }
-    await sharp(response.data).toFile("output/" + filename + '.png');
+
 }

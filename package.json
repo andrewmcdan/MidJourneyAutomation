@@ -10,6 +10,7 @@
     "chatgpt": "^5.2.5",
     "discord-api-types": "^0.37.50",
     "discord.js": "^14.13.0",
+    "discordie": "^0.11.0",
     "fast-deep-equal": "^3.1.3",
     "figlet": "^1.6.0",
     "inquirer": "^9.2.11",
