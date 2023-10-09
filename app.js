@@ -13,7 +13,71 @@ import chalk from 'chalk';
 import figlet from 'figlet';
 import stringifyObject from 'stringify-object';
 import Discordie from "discordie";
-import Eris from "eris";
+import express from "express";
+
+// get user config from file
+const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
+
+const app = express()
+
+const doLogin = async () => {
+    console.log("Log in to Discord using browser:");
+    console.log("Browser extension \"Run Javascript\" is required to get the token from the browser.");
+    console.log("https://chrome.google.com/webstore/detail/run-javascript/lmilalhkkdhfieeienjbiicclobibjao");
+    console.log("Paste the code below into the extension and enable it.");
+    console.log("token = localStorage.getItem(\"token\")\;\ntoken = token.replaceAll(\"\\\"\", \"\")\;\ntheUrl = \"http://localhost:9999/api/token=\" + token\;\nwindow.open(theUrl,'_blank');\n");
+
+    let notLoggedIn = true;
+    let loginTimeout = setTimeout(() => {
+        console.log("Login timed out. Please try again.");
+        process.exit();
+    }, 5 * 60 * 1000);
+
+    let newToken = "";
+
+    app.get("/login", (request, response) => {
+        const redirect_url = `https://discord.com/oauth2/authorize?response_type=code&client_id=${userConfig.CLIENT_ID}&scope=identify&state=123456&redirect_uri=${userConfig.REDIRECT_URI}&prompt=consent`
+        response.redirect(redirect_url);
+    })
+
+    app.get("/api/callback", async (request, response) => {
+        const code = request.query["code"]
+        const resp = await axios.post('https://discord.com/api/oauth2/token',
+            new URLSearchParams({
+                'client_id': userConfig.CLIENT_ID,
+                'client_secret': userConfig.CLIENT_SECRET,
+                'grant_type': 'authorization_code',
+                'redirect_uri': userConfig.REDIRECT_URI,
+                'code': code
+            }),
+            {
+                headers:
+                {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            })
+        response.send("You may close this window now.<script>window.close();</script>");
+    })
+
+    app.listen(9999, () => {
+        console.log("Browse to http://localhost:9999/login");
+    })
+
+    app.get("/api/token=*", async (request, response) => {
+        console.log("token request");
+        console.log(request.url);
+        newToken = request.url.substring(11);
+        // respond with just enough javascript to close the window that opens
+        response.send("<script>window.close();</script>");
+        notLoggedIn = false;
+        loginTimeout.unref();
+    })
+
+    while(notLoggedIn) {
+        await waitSeconds(1);
+    }
+    return newToken;
+}
 
 var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
@@ -22,64 +86,37 @@ var DiscordieReady = false;
 var guild_id_from_discordie = "";
 var channel_id_from_discordie = "";
 
-// get user config from file
-const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 // get data from prompts file
 let prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
 
-DiscordClient.connect({
-    token: userConfig.token
-});
 
-DiscordClient.Dispatcher.on(DiscordEvents.GATEWAY_READY, e => {
-    console.log("Connected as: " + DiscordClient.User.username);
-    DiscordieReady = true;
-});
 
-DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
-    if (e.message.content == "ping")
-        e.message.channel.sendMessage("pong");
-});
+async function setup() {
+    if(userConfig.token == "" || userConfig.token == null) {
+        userConfig.token = await doLogin();
+        fs.writeFileSync('user.json', JSON.stringify(userConfig));
+    }
 
-async function setup(){
-    // first, ask the user for email and password
-    const questions = [
-        {
-            name: 'EMAIL',
-            type: 'input',
-            message: 'What is your email?'
-        },
-        {
-            name: 'PASSWORD',
-            type: 'password',
-            message: 'What is your password?'
-        }
-    ];
-    let answers = await inquirer.prompt(questions);
-    // login to midjourney  
-    let loginResponse = await axios.post('https://midjourney.com/api/login', {
-        email: answers.EMAIL,
-        password: answers.PASSWORD
+    DiscordClient.connect({
+        token: userConfig.token
     });
-    // get the user info
-    let userInfo = await axios.get('https://midjourney.com/api/user', {
-        headers: {
-            'Authorization': 'Bearer ' + loginResponse.data.token
-        }
+
+    DiscordClient.Dispatcher.on(DiscordEvents.GATEWAY_READY, e => {
+        console.log("Connected as: " + DiscordClient.User.username);
+        DiscordieReady = true;
     });
-    // get the user's available time
-    let availableTime = await axios.get('https://midjourney.com/api/available-time', {
-        headers: {
-            'Authorization': 'Bearer ' + loginResponse.data.token
-        }
+
+
+
+    DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
+        if (e.message.content == "ping")
+            e.message.channel.sendMessage("pong");
     });
-    // display the user info
-    console.log("User info: ", JSON.stringify(userInfo));
-    console.log("Available time: ", JSON.stringify(availableTime));
+
 
     // wait for discordie to be ready
     console.log("Waiting for Discordie to be ready...");
-    while(!DiscordieReady){
+    while (!DiscordieReady) {
         await waitSeconds(1);
     }
     // get list of guilds
@@ -93,19 +130,19 @@ async function setup(){
             choices: guilds
         }
     ];
-    
+
     // ask for the guild
     let guildAnswer = await inquirer.prompt(guildQuestion);
 
     // find the guild object from the answer name
     let guild;
     guilds.forEach((g, i) => {
-        if(g.name == guildAnswer.GUILD) guild = guilds[i];
+        if (g.name == guildAnswer.GUILD) guild = guilds[i];
     });
 
     // get list of channels
     let channels = await DiscordClient.Channels.textForGuild(guild);
-    
+
     const channelQuestion = [
         {
             name: 'CHANNEL',
@@ -121,7 +158,7 @@ async function setup(){
     // find the channel object from the answer name
     let channel;
     channels.forEach((c, i) => {
-        if(c.name == channelAnswer.CHANNEL) channel = channels[i];
+        if (c.name == channelAnswer.CHANNEL) channel = channels[i];
     });
 
     // set the guild id and channel id
