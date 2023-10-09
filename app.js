@@ -321,12 +321,23 @@ const askInfiniteQuestions = () => {
         {
             name: 'CUSTOMFILENAME',
             type: 'confirm',
-            message: 'Use infinizoom folder and sequential naming? (y/n)'
+            message: 'Use custom folder and sequential naming? (y/n)'
         },
         {
             name: 'PROMPT',
             type: 'input',
             message: 'What is your prompt?'
+        }
+    ];
+    return inquirer.prompt(questions);
+}
+
+const customFolderQuestion = () => {
+    const questions = [
+        {
+            name: 'FOLDER',
+            type: 'input',
+            message: 'What is your folder name?'
         }
     ];
     return inquirer.prompt(questions);
@@ -853,23 +864,35 @@ async function run() {
             case "10":
                 console.log("Start infinite zoom");
                 let infiniteZoomQuestions = await askInfiniteQuestions();
+                let folder2 = "";
+                if(!infiniteZoomQuestions.CUSTOMFILENAME) {
+                    folder2 = customFolderQuestion().FOLDER;
+                    // sanitize the folder name
+                    folder2 = folder2.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                }
                 if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    await infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME);
+                    await infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
                 } else {
-                    await infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME);
+                    await infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
                 }
                 break;
             case "11":
                 console.log("Start infinite variation upscales from prompt");
                 let infinitePromptQuestions = await askInfiniteQuestions();
+                let folder = "";
+                if(!infinitePromptQuestions.CUSTOMFILENAME) {
+                    folder = customFolderQuestion().FOLDER;
+                    // sanitize the folder name
+                    folder = folder.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                }
                 if (infinitePromptQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infinitePromptQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    await infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME);
+                    await infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder);
                 } else {
-                    await infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME);
+                    await infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder);
                 }
                 break;
             case "0":
@@ -926,7 +949,7 @@ async function run() {
     }
 }
 
-async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false) {
+async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "") {
     const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
     let img = await mj.generateImage(MJprompt, (obj, progress) => {
         process.stdout.write(progress + "%   ");
@@ -935,7 +958,13 @@ async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = fals
     if (saveQuadFiles) makeFileFromIMGobj(img);
     let imgToZoom = img;
     let imgToScale = img;
-    let filenameBase = "infinizoom/";
+    
+    let filenameBase = folder + "/";
+    // check to see if the folder exists, if not, create it
+    if (!fs.existsSync(filenameBase)) {
+        fs.mkdirSync(filenameBase);
+    }
+    
     let fileCount = 1;
 
     while (true) {
@@ -951,7 +980,7 @@ async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = fals
     }
 }
 
-async function infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false) {
+async function infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "") {
     const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
     let img = await mj.generateImage(MJprompt, (obj, progress) => {
         process.stdout.write(progress + "%   ");
@@ -960,7 +989,7 @@ async function infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, a
     if (saveQuadFiles) await makeFileFromIMGobj(img);
     
     let imgToUpscale = img;
-    let filenameBase = "infiniteRerollUpscales/";
+    let filenameBase = folder + "/";
 
     // check if the folder exists, if not, create it
     if (!fs.existsSync(filenameBase)) {
@@ -1100,7 +1129,13 @@ async function makeFileFromIMGobj(img, filename = "") {
         const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
         const regex = new RegExp(regexString);
         const matches = regex.exec(img.url);
-        filename = matches[0];
+        try{
+            filename = matches[0];
+        }catch(e){
+            console.log("Error: Could not parse filename from url. Using default filename.");
+            filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
+            console.log("filename:", filename);
+        }
         await sharp(response.data).toFile("output/" + filename + '.png');
     } else {
         const response = await axios.get(img.url, { responseType: 'arraybuffer' });
