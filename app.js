@@ -73,7 +73,7 @@ const doLogin = async () => {
         loginTimeout.unref();
     })
 
-    while(notLoggedIn) {
+    while (notLoggedIn) {
         await waitSeconds(1);
     }
     return newToken;
@@ -92,7 +92,7 @@ let prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
 
 
 async function setup() {
-    if(userConfig.token == "" || userConfig.token == null) {
+    if (userConfig.token == "" || userConfig.token == null) {
         userConfig.token = await doLogin();
         fs.writeFileSync('user.json', JSON.stringify(userConfig));
     }
@@ -865,8 +865,9 @@ async function run() {
                 console.log("Start infinite zoom");
                 let infiniteZoomQuestions = await askInfiniteQuestions();
                 let folder2 = "";
-                if(!infiniteZoomQuestions.CUSTOMFILENAME) {
-                    folder2 = customFolderQuestion().FOLDER;
+                if (infiniteZoomQuestions.CUSTOMFILENAME) {
+                    let folderRes = await customFolderQuestion();
+                    folder2 = folderRes.FOLDER;
                     // sanitize the folder name
                     folder2 = folder2.replace(/[^a-z0-9]/gi, '_').toLowerCase();
                 }
@@ -882,8 +883,9 @@ async function run() {
                 console.log("Start infinite variation upscales from prompt");
                 let infinitePromptQuestions = await askInfiniteQuestions();
                 let folder = "";
-                if(!infinitePromptQuestions.CUSTOMFILENAME) {
-                    folder = customFolderQuestion().FOLDER;
+                if (infinitePromptQuestions.CUSTOMFILENAME) {
+                    let folderRes = await customFolderQuestion();
+                    folder = folderRes.FOLDER;
                     // sanitize the folder name
                     folder = folder.replace(/[^a-z0-9]/gi, '_').toLowerCase();
                 }
@@ -931,7 +933,7 @@ async function run() {
                     console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                     // run the main function
                     await main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
-                    
+
                     printRunComplete();
                     console.log("Pausing for a bit between runs...");
                     console.log("");
@@ -958,13 +960,17 @@ async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = fals
     if (saveQuadFiles) makeFileFromIMGobj(img);
     let imgToZoom = img;
     let imgToScale = img;
-    
+
     let filenameBase = folder + "/";
     // check to see if the folder exists, if not, create it
-    if (!fs.existsSync(filenameBase)) {
-        fs.mkdirSync(filenameBase);
+    try {
+        if (!fs.existsSync("output/" + filenameBase)) {
+            fs.mkdirSync("output/" + filenameBase);
+        }
+    } catch (err) {
+        console.log(err);
     }
-    
+
     let fileCount = 1;
 
     while (true) {
@@ -987,13 +993,17 @@ async function infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, a
     });
     console.log("\nInitial Midjourney image generation completed\n");
     if (saveQuadFiles) await makeFileFromIMGobj(img);
-    
+
     let imgToUpscale = img;
     let filenameBase = folder + "/";
 
     // check if the folder exists, if not, create it
-    if (!fs.existsSync(filenameBase)) {
-        fs.mkdirSync(filenameBase);
+    try {
+        if (!fs.existsSync("output/" + filenameBase)) {
+            fs.mkdirSync("output/" + filenameBase);
+        }
+    } catch (err) {
+        console.log(err);
     }
 
     let fileCount = 1;
@@ -1005,7 +1015,7 @@ async function infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, a
         // create the filename with the base and the padded file count
         let filename = filenameBase + fileCountString;
         // loop through 4 times and upscale each image
-        for(let i = 1; i <= 4; i++) {
+        for (let i = 1; i <= 4; i++) {
             // upscale the image and save it
             let temp = await mj.upscaleImage(imgToUpscale, i, img.prompt);
             await makeFileFromIMGobj(temp, autoNameFiles ? filename : "");
@@ -1129,9 +1139,9 @@ async function makeFileFromIMGobj(img, filename = "") {
         const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
         const regex = new RegExp(regexString);
         const matches = regex.exec(img.url);
-        try{
+        try {
             filename = matches[0];
-        }catch(e){
+        } catch (e) {
             console.log("Error: Could not parse filename from url. Using default filename.");
             filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
             console.log("filename:", filename);
