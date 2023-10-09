@@ -106,13 +106,10 @@ async function setup() {
         DiscordieReady = true;
     });
 
-
-
     DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
         if (e.message.content == "ping")
             e.message.channel.sendMessage("pong");
     });
-
 
     // wait for discordie to be ready
     console.log("Waiting for Discordie to be ready...");
@@ -200,7 +197,7 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
     chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";;
-    chatPrompt += "Prefer succintness over verbosity. Be sure to specify the art style. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
+    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     //console.log(chatResponse);
     return chatResponse;
@@ -218,7 +215,8 @@ const intro = () => {
             figlet.textSync('Midjourney Automata', {
                 font: 'roman',
                 horizontalLayout: 'default',
-                verticalLayout: 'default'
+                verticalLayout: 'default',
+                width: process.stdout.columns
             })
         )
     );
@@ -232,14 +230,15 @@ const printDone = () => {
             figlet.textSync('Done', {
                 font: 'doh',
                 horizontalLayout: 'full',
-                verticalLayout: 'full'
+                verticalLayout: 'full',
+                width: process.stdout.columns
             })
         )
     );
     console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
 }
 
-const printPromtptsFile = (choice = "all") => {
+const printPromptsFile = (choice = "all") => {
     if (choice == "themes" || choice == "all") {
         if (prompts.themes == null) prompts.themes = [];
         console.log(chalk.yellowBright("Loaded themes: "));
@@ -292,7 +291,7 @@ const askMenuOption = () => {
     return inquirer.prompt(questions);
 }
 
-const askInfinteZoomQuestions = () => {
+const askInfiniteZoomQuestions = () => {
     const questions = [
         {
             name: 'SENDTOCHATGPT',
@@ -537,13 +536,13 @@ async function run() {
             case "1":
                 console.log("Show loaded themes, prompts, and options");
                 // print the info from the prompts file
-                printPromtptsFile();
+                printPromptsFile();
                 break;
             case "2":
                 console.log("Modify prompts");
                 let modifyPromptsMenuOption = { OPTION: "" };
                 while (modifyPromptsMenuOption.OPTION != "0") {
-                    printPromtptsFile("prompts");
+                    printPromptsFile("prompts");
                     // print the modify prompts menu
                     printModifyPromptsMenu();
                     // ask for the menu option
@@ -594,7 +593,7 @@ async function run() {
                 console.log("Modify themes");
                 let modifyThemesMenuOption = { OPTION: "" };
                 while (modifyThemesMenuOption.OPTION != "0") {
-                    printPromtptsFile("themes");
+                    printPromptsFile("themes");
                     // print the modify themes menu
                     printModifyThemesMenu();
                     // ask for the menu option
@@ -660,7 +659,7 @@ async function run() {
                 console.log("Modify options (applies to all generations)");
                 let modifyOptionsMenuOption = { OPTION: "" };
                 while (modifyOptionsMenuOption.OPTION != "0") {
-                    printPromtptsFile("options");
+                    printPromptsFile("options");
                     // print the modify options menu
                     printModifyOptionsMenu();
                     // ask for the menu option
@@ -722,7 +721,7 @@ async function run() {
             case "5":
                 console.log("Start thematic generation from saved theme");
                 // print the themes
-                printPromtptsFile("themes");
+                printPromptsFile("themes");
                 // ask for the theme number
                 themeChoice = await askMenuOption();
                 basicAnswers = await askImageGenQuestions();
@@ -806,7 +805,7 @@ async function run() {
             case "7":
                 console.log("Start prompt generation from saved prompt");
                 // print the prompts
-                printPromtptsFile("prompts");
+                printPromptsFile("prompts");
                 // ask for the prompt number
                 let promptChoice2 = await askMenuOption();
                 // set the prompt answer
@@ -838,7 +837,7 @@ async function run() {
                 break;
             case "10":
                 console.log("Start infinite zoom");
-                let infiniteZoomQuestions = await askInfinteZoomQuestions();
+                let infiniteZoomQuestions = await askInfiniteZoomQuestions();
                 if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
