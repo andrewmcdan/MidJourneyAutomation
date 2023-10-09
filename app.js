@@ -13,6 +13,7 @@ import chalk from 'chalk';
 import figlet from 'figlet';
 import stringifyObject from 'stringify-object';
 import Discordie from "discordie";
+import Eris from "eris";
 
 var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
@@ -41,6 +42,41 @@ DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
 });
 
 async function setup(){
+    // first, ask the user for email and password
+    const questions = [
+        {
+            name: 'EMAIL',
+            type: 'input',
+            message: 'What is your email?'
+        },
+        {
+            name: 'PASSWORD',
+            type: 'password',
+            message: 'What is your password?'
+        }
+    ];
+    let answers = await inquirer.prompt(questions);
+    // login to midjourney  
+    let loginResponse = await axios.post('https://midjourney.com/api/login', {
+        email: answers.EMAIL,
+        password: answers.PASSWORD
+    });
+    // get the user info
+    let userInfo = await axios.get('https://midjourney.com/api/user', {
+        headers: {
+            'Authorization': 'Bearer ' + loginResponse.data.token
+        }
+    });
+    // get the user's available time
+    let availableTime = await axios.get('https://midjourney.com/api/available-time', {
+        headers: {
+            'Authorization': 'Bearer ' + loginResponse.data.token
+        }
+    });
+    // display the user info
+    console.log("User info: ", JSON.stringify(userInfo));
+    console.log("Available time: ", JSON.stringify(availableTime));
+
     // wait for discordie to be ready
     console.log("Waiting for Discordie to be ready...");
     while(!DiscordieReady){
