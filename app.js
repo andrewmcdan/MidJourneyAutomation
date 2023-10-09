@@ -53,7 +53,7 @@ async function setup(){
         {
             name: 'GUILD',
             type: 'list',
-            message: 'What is server name?',
+            message: 'What is your server name?',
             choices: guilds
         }
     ];
@@ -74,7 +74,7 @@ async function setup(){
         {
             name: 'CHANNEL',
             type: 'list',
-            message: 'What is channel name?',
+            message: 'Which channel would you like to use?',
             choices: channels
         }
     ];
@@ -91,7 +91,7 @@ async function setup(){
     // set the guild id and channel id
     guild_id_from_discordie = guild.id;
     channel_id_from_discordie = channel.id;
-    console.log("Shutting down Discord client...");
+    console.log("Shutting down Discordie client...");
     await DiscordClient.disconnect();
 }
 
