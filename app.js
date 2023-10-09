@@ -16,7 +16,7 @@ import Discordie from "discordie";
 
 var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
-var DiscrodieReady = false;
+var DiscordieReady = false;
 
 var guild_id_from_discordie = "";
 var channel_id_from_discordie = "";
@@ -32,7 +32,7 @@ DiscordClient.connect({
 
 DiscordClient.Dispatcher.on(DiscordEvents.GATEWAY_READY, e => {
     console.log("Connected as: " + DiscordClient.User.username);
-    DiscrodieReady = true;
+    DiscordieReady = true;
 });
 
 DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
@@ -43,7 +43,7 @@ DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
 async function setup(){
     // wait for discordie to be ready
     console.log("Waiting for Discordie to be ready...");
-    while(!DiscrodieReady){
+    while(!DiscordieReady){
         await waitSeconds(1);
     }
     // get list of guilds
