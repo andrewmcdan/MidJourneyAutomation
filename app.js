@@ -212,7 +212,7 @@ const intro = () => {
     console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
     console.log(
         chalk.green(
-            figlet.textSync('Midjourney Automata', {
+            figlet.textSync('Midjourney\nAutomata', {
                 font: 'roman',
                 horizontalLayout: 'default',
                 verticalLayout: 'default',
@@ -229,6 +229,21 @@ const printDone = () => {
         chalk.green(
             figlet.textSync('Done', {
                 font: 'doh',
+                horizontalLayout: 'full',
+                verticalLayout: 'full',
+                width: process.stdout.columns
+            })
+        )
+    );
+    console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
+}
+
+const printRunComplete = () => {
+    console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
+    console.log(
+        chalk.green(
+            figlet.textSync('Run Complete', {
+                font: 'roman',
                 horizontalLayout: 'full',
                 verticalLayout: 'full',
                 width: process.stdout.columns
@@ -291,7 +306,7 @@ const askMenuOption = () => {
     return inquirer.prompt(questions);
 }
 
-const askInfiniteZoomQuestions = () => {
+const askInfiniteQuestions = () => {
     const questions = [
         {
             name: 'SENDTOCHATGPT',
@@ -837,13 +852,24 @@ async function run() {
                 break;
             case "10":
                 console.log("Start infinite zoom");
-                let infiniteZoomQuestions = await askInfiniteZoomQuestions();
+                let infiniteZoomQuestions = await askInfiniteQuestions();
                 if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
                     await infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME);
                 } else {
                     await infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME);
+                }
+                break;
+            case "11":
+                console.log("Start infinite variation upscales from prompt");
+                let infinitePromptQuestions = await askInfiniteQuestions();
+                if (infinitePromptQuestions.SENDTOCHATGPT) {
+                    let res = await sendChatGPTPrompt(infinitePromptQuestions.PROMPT);
+                    res = res.replaceAll("\"", "");
+                    await infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME);
+                } else {
+                    await infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME);
                 }
                 break;
             case "0":
@@ -882,8 +908,9 @@ async function run() {
                     console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                     // run the main function
                     await main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
-                    // print done message
-                    printDone();
+                    
+                    printRunComplete();
+                    console.log("Pausing for a bit between runs...");
                     console.log("");
                     for (let i = 0; i < (userConfig.wait_time_after_done < 5 ? 5 : userConfig.wait_time_after_done * 2); i++) {
                         process.stdout.write(".");
@@ -892,13 +919,15 @@ async function run() {
                     console.log("");
                 }
             }
+            // print done message
+            printDone();
             runAsk = false;
         }
     }
 }
 
 async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false) {
-    const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
+    const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
     let img = await mj.generateImage(MJprompt, (obj, progress) => {
         process.stdout.write(progress + "%   ");
     });
@@ -915,9 +944,52 @@ async function infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = fals
         // generate random number between 1 and 4
         let random1to4 = Math.floor(Math.random() * 4) + 1;
         imgToZoom = await mj.upscaleImage(imgToScale, random1to4, img.prompt);
-        makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "");
+        await makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "");
         imgToScale = await mj.zoomOut(imgToZoom, img.prompt);
         if (saveQuadFiles) makeFileFromIMGobj(imgToScale, autoNameFiles ? filename : "");
+        fileCount++;
+    }
+}
+
+async function infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false) {
+    const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
+    let img = await mj.generateImage(MJprompt, (obj, progress) => {
+        process.stdout.write(progress + "%   ");
+    });
+    console.log("\nInitial Midjourney image generation completed\n");
+    if (saveQuadFiles) await makeFileFromIMGobj(img);
+    
+    let imgToUpscale = img;
+    let filenameBase = "infiniteRerollUpscales/";
+
+    // check if the folder exists, if not, create it
+    if (!fs.existsSync(filenameBase)) {
+        fs.mkdirSync(filenameBase);
+    }
+
+    let fileCount = 1;
+
+    while (true) {
+        // pad the file count with 0s to make it 4 digits long (0001, 0002, etc)
+        let fileCountString = fileCount.toString().padStart(4, "0");
+        fileCount++;
+        // create the filename with the base and the padded file count
+        let filename = filenameBase + fileCountString;
+        // loop through 4 times and upscale each image
+        for(let i = 1; i <= 4; i++) {
+            // upscale the image and save it
+            let temp = await mj.upscaleImage(imgToUpscale, i, img.prompt);
+            await makeFileFromIMGobj(temp, autoNameFiles ? filename : "");
+            // pad the file count with 0s to make it 4 digits long (0001, 0002, etc)
+            fileCountString = fileCount.toString().padStart(4, "0");
+            fileCount++;
+            // create the filename with the base and the padded file count
+            filename = filenameBase + fileCountString;
+        }
+        // reroll the image and save it
+        imgToUpscale = await mj.rerollImage(imgToUpscale, img.prompt);
+        if (saveQuadFiles) await makeFileFromIMGobj(imgToUpscale, autoNameFiles ? filename : "");
+        // increment the file count
         fileCount++;
     }
 }
