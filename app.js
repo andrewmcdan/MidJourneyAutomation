@@ -15,6 +15,240 @@ import stringifyObject from 'stringify-object';
 import Discordie from "discordie";
 import express from "express";
 
+class MJ_Handler{
+    constructor(config){
+        this.config = config;
+        this.mj = new MidjourneyDiscordBridge(config.token, config.guild_id, config.channel_id);
+    }
+
+    runningProcess = false;
+    killCalled = false;
+
+    async killProcess(){
+        this.killCalled = true;
+    }
+
+    breakout(){
+        if (this.killCalled) {
+            this.runningProcess = false;
+            this.killCalled = false;
+            //this.mj.close();
+        }
+    }
+
+    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "") {
+        this.runningProcess = true;
+        
+        let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
+            if (progress != null) {
+                process.stdout.write(progress + "%");
+            }
+            this.breakout();
+        });
+        console.log("\nInitial Midjourney image generation completed\n");
+        if (saveQuadFiles) this.makeFileFromIMGobj(img);
+        let imgToZoom = img;
+        let imgToScale = img;
+    
+        let filenameBase = folder + "/";
+        // check to see if the folder exists, if not, create it
+        try {
+            if (!fs.existsSync("output/" + filenameBase)) {
+                fs.mkdirSync("output/" + filenameBase);
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    
+        let fileCount = 1;
+        while (this.runningProcess) {
+            // if the kill process was called, exit the loop
+            this.breakout();
+            let fileCountString = fileCount.toString().padStart(4, "0");
+            let filename = filenameBase + fileCountString;
+            // generate random number between 1 and 4
+            let random1to4 = Math.floor(Math.random() * 4) + 1;
+            imgToZoom = await this.mj.upscaleImage(imgToScale, random1to4, img.prompt,this.breakout);
+            if(!this.runningProcess)break;
+            await this.makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "");
+            imgToScale = await this.mj.zoomOut(imgToZoom, img.prompt, this.breakout);
+            if(!this.runningProcess)break;
+            if (saveQuadFiles) this.makeFileFromIMGobj(imgToScale, autoNameFiles ? filename : "");
+            fileCount++;
+        }
+    }
+
+    async infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null) {
+        this.runningProcess = true;
+        //console.log("Starting infinite prompt variation upscales... (press q to quit)");
+        //const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
+        let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
+            if (progress != null) {
+                process.stdout.write(progress + "%");
+            }
+            this.breakout();
+        });
+        console.log("\nInitial Midjourney image generation completed");
+        if (saveQuadFiles) await this.makeFileFromIMGobj(img);
+    
+        let imgToUpscale = img;
+        let filenameBase = folder + "/";
+    
+        // check if the folder exists, if not, create it
+        try {
+            if (!fs.existsSync("output/" + filenameBase)) {
+                fs.mkdirSync("output/" + filenameBase);
+            }
+        } catch (err) {
+            console.log(err);
+        }
+    
+        let fileCount = 1;
+    
+        while (this.runningProcess) {
+            this.breakout();
+            if(!this.runningProcess)break;
+            // loop through 4 times and upscale each image
+            for (let i = 1; i <= 4; i++) {
+                // pad the file count with 0s to make it 4 digits long (0001, 0002, etc)
+                let fileCountString = fileCount.toString().padStart(4, "0");
+                let filename = filenameBase + fileCountString;
+                fileCount++;
+                // upscale the image and save it
+                let temp = await this.mj.upscaleImage(imgToUpscale, i, img.prompt,this.breakout);
+                if(!this.runningProcess)break;
+                await this.makeFileFromIMGobj(temp, autoNameFiles ? filename : "");
+            }
+            // reroll the image and save it
+            imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt,this.breakout);
+            if(!this.runningProcess)break;
+            if (saveQuadFiles) {
+                let fileCountString = fileCount.toString().padStart(4, "0");
+                fileCount++;
+                // create the filename with the base and the padded file count
+                filename = filenameBase + fileCountString;
+                await this.makeFileFromIMGobj(imgToUpscale, autoNameFiles ? filename : "");
+            }
+        }
+    }
+
+    async main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false) {
+        maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
+        //const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
+        //const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
+        const mj = this.mj;
+        let maxGenerationsCount = 0;
+        if (printInfo) {
+            let info = await mj.getInfo();
+            console.log("Midjourney info:\n\n", info.embeds[0].description);
+        }
+    
+        while (maxGenerationsCount < maxGenerations) {
+            let img = await mj.generateImage(MJprompt, (obj, progress) => {
+                process.stdout.write(progress + "%");
+            });
+            //console.log("\nMidjourney image generation completed:", img.url);
+            console.log("\nInitial Midjourney image generation completed\n");
+    
+            // Do something with the image
+            makeFileFromIMGobj(img);
+    
+            let upscaleQueue = [];
+            upscaleQueue.push(img);
+            let variationQueue = [];
+            variationQueue.push(img);
+            let zoomQueue = [];
+            let maxUpscalesCount = 0;
+            let maxVariationsCount = 0;
+            let maxZoomsCount = 0;
+            let loop = [true, true, true];
+    
+            // loop as long as there are images in the queue and we haven't reached the max number of generations
+            while (loop[0] || loop[1] || loop[2]) {
+                loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
+                loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
+                loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
+                console.log("Processing request queues....");
+                //console.log("upscaleQueue.length:", upscaleQueue.length);
+                //console.log("variationQueue.length:", variationQueue.length);
+                //console.log("zoomQueue.length:", zoomQueue.length);
+                while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
+                    let img = upscaleQueue.shift();
+                    let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
+                    makeFileFromIMGobj(upscaledImg);
+                    zoomQueue.push(upscaledImg);
+                    upscaledImg = await mj.upscaleImage(img, 2, img.prompt);
+                    makeFileFromIMGobj(upscaledImg);
+                    zoomQueue.push(upscaledImg);
+                    upscaledImg = await mj.upscaleImage(img, 3, img.prompt);
+                    makeFileFromIMGobj(upscaledImg);
+                    zoomQueue.push(upscaledImg);
+                    upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
+                    makeFileFromIMGobj(upscaledImg);
+                    zoomQueue.push(upscaledImg);
+                    maxUpscalesCount++;
+                }
+                //console.log("upscaleQueue.length:", upscaleQueue.length);
+                //console.log("variationQueue.length:", variationQueue.length);
+                //console.log("zoomQueue.length:", zoomQueue.length);
+                while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
+                    let img = variationQueue.shift();
+                    let variationImg = await mj.variation(img, 1, img.prompt);
+                    makeFileFromIMGobj(variationImg);
+                    upscaleQueue.push(variationImg);
+                    variationQueue.push(variationImg);
+                    variationImg = await mj.variation(img, 2, img.prompt);
+                    makeFileFromIMGobj(variationImg);
+                    upscaleQueue.push(variationImg);
+                    variationQueue.push(variationImg);
+                    variationImg = await mj.variation(img, 3, img.prompt);
+                    makeFileFromIMGobj(variationImg);
+                    upscaleQueue.push(variationImg);
+                    variationQueue.push(variationImg);
+                    variationImg = await mj.variation(img, 4, img.prompt);
+                    makeFileFromIMGobj(variationImg);
+                    upscaleQueue.push(variationImg);
+                    variationQueue.push(variationImg);
+                    maxVariationsCount++;
+                }
+                //console.log("upscaleQueue.length:", upscaleQueue.length);
+                //console.log("variationQueue.length:", variationQueue.length);
+                //console.log("zoomQueue.length:", zoomQueue.length);
+                while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
+                    let img = zoomQueue.shift();
+                    let zoomedImg = await mj.zoomOut(img, img.prompt);
+                    makeFileFromIMGobj(zoomedImg);
+                    variationQueue.push(zoomedImg);
+                    upscaleQueue.push(zoomedImg);
+                    maxZoomsCount++;
+                }
+            }
+            maxGenerationsCount++;
+        }
+        mj.close()
+    }
+
+    async makeFileFromIMGobj(img, filename = "") {
+        if (filename == "") {
+            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
+            const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
+            const regex = new RegExp(regexString);
+            const matches = regex.exec(img.url);
+            try {
+                filename = matches[0];
+            } catch (e) {
+                console.log("Error: Could not parse filename from url. Using default filename.");
+                filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
+                console.log("filename:", filename);
+            }
+            await sharp(response.data).toFile("output/" + filename + '.png');
+        } else {
+            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
+            await sharp(response.data).toFile("output/" + filename + '.png');
+        }
+    }
+}
+
 // get user config from file
 const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 
@@ -83,7 +317,7 @@ var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
 var DiscordieReady = false;
 
-var midjourney = new MJ_Handler();
+var midjourney = null;
 
 var guild_id_from_discordie = "";
 var channel_id_from_discordie = "";
@@ -163,6 +397,11 @@ async function setup() {
     channel_id_from_discordie = channel.id;
     console.log("Shutting down Discordie client...");
     await DiscordClient.disconnect();
+    midjourney = new MJ_Handler({
+        token: userConfig.token, 
+        guild_id: guild_id_from_discordie, 
+        channel_id: channel_id_from_discordie
+    });
 }
 
 // send a prompt to chatgpt and return the response
@@ -876,9 +1115,9 @@ async function run() {
                 if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    await infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    await midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
                 } else {
-                    await infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    await midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
                 }
                 break;
             case "11":
@@ -894,14 +1133,10 @@ async function run() {
                 if (infinitePromptQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infinitePromptQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, (obj) => {
-                        if(!runningProcess) this.close();
-                    });
+                    midjourney.infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder);
                     runningProcess = true;
                 } else {
-                    infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, (obj) => {
-                        if(!runningProcess) this.close();
-                    });
+                    midjourney.infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder);
                     runningProcess = true;
                 }
                 break;
@@ -916,14 +1151,10 @@ async function run() {
         
         if(runningProcess) console.log("Running...");
         while (runningProcess) {
+            process.stdout.cursorTo(0, 0);
+            let windowSize = process.stdout.getWindowSize();
             process.stdout.write(".");
             await waitSeconds(1);
-            let input = process.stdin.read();
-            if (input != null) {
-                if (input.indexOf('q') != -1) {
-                    runningProcess = false;
-                }
-            }
         }
 
         if (runAsk) {
@@ -951,7 +1182,7 @@ async function run() {
                 if (ready.READY === true) {
                     console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                     // run the main function
-                    await main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
+                    await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
 
                     printRunComplete();
                     console.log("Pausing for a bit between runs...");
@@ -970,217 +1201,7 @@ async function run() {
     }
 }
 
-class MJ_Handler{
-    constructor(config){
-        this.config = config;
-    }
 
-
-    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "") {
-        const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
-        let img = await mj.generateImage(MJprompt, (obj, progress) => {
-            process.stdout.write(progress + "%");
-        });
-        console.log("\nInitial Midjourney image generation completed\n");
-        if (saveQuadFiles) makeFileFromIMGobj(img);
-        let imgToZoom = img;
-        let imgToScale = img;
-    
-        let filenameBase = folder + "/";
-        // check to see if the folder exists, if not, create it
-        try {
-            if (!fs.existsSync("output/" + filenameBase)) {
-                fs.mkdirSync("output/" + filenameBase);
-            }
-        } catch (err) {
-            console.log(err);
-        }
-    
-        let fileCount = 1;
-        let loop = true;
-        while (loop) {
-            let fileCountString = fileCount.toString().padStart(4, "0");
-            let filename = filenameBase + fileCountString;
-            // generate random number between 1 and 4
-            let random1to4 = Math.floor(Math.random() * 4) + 1;
-            imgToZoom = await mj.upscaleImage(imgToScale, random1to4, img.prompt);
-            await makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "");
-            imgToScale = await mj.zoomOut(imgToZoom, img.prompt);
-            if (saveQuadFiles) makeFileFromIMGobj(imgToScale, autoNameFiles ? filename : "");
-            fileCount++;
-        }
-    }
-
-    async infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null) {
-        //console.log("Starting infinite prompt variation upscales... (press q to quit)");
-        const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
-        let img = await mj.generateImage(MJprompt, (obj, progress) => {
-            if (progress != null) {
-                process.stdout.write(progress + "%");
-            }
-            if (cb != null) {
-                cb({ progress, obj });
-            }
-        });
-        console.log("\nInitial Midjourney image generation completed");
-        if (saveQuadFiles) await makeFileFromIMGobj(img);
-    
-        let imgToUpscale = img;
-        let filenameBase = folder + "/";
-    
-        // check if the folder exists, if not, create it
-        try {
-            if (!fs.existsSync("output/" + filenameBase)) {
-                fs.mkdirSync("output/" + filenameBase);
-            }
-        } catch (err) {
-            console.log(err);
-        }
-    
-        let fileCount = 1;
-        let loop = true;
-    
-        while (loop) {
-            // create the filename with the base and the padded file count
-            let filename = filenameBase + fileCountString;
-            // loop through 4 times and upscale each image
-            for (let i = 1; i <= 4; i++) {
-                // pad the file count with 0s to make it 4 digits long (0001, 0002, etc)
-                let fileCountString = fileCount.toString().padStart(4, "0");
-                fileCount++;
-                // create the filename with the base and the padded file count
-                filename = filenameBase + fileCountString;
-                // upscale the image and save it
-                let temp = await mj.upscaleImage(imgToUpscale, i, img.prompt);
-                await makeFileFromIMGobj(temp, autoNameFiles ? filename : "");
-            }
-            // reroll the image and save it
-            imgToUpscale = await mj.rerollImage(imgToUpscale, img.prompt);
-            if (saveQuadFiles) {
-                let fileCountString = fileCount.toString().padStart(4, "0");
-                fileCount++;
-                // create the filename with the base and the padded file count
-                filename = filenameBase + fileCountString;
-                await makeFileFromIMGobj(imgToUpscale, autoNameFiles ? filename : "");
-            }
-        }
-    }
-
-    async main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false) {
-        maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
-        const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
-        //const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
-        let maxGenerationsCount = 0;
-        if (printInfo) {
-            let info = await mj.getInfo();
-            console.log("Midjourney info:\n\n", info.embeds[0].description);
-        }
-    
-        while (maxGenerationsCount < maxGenerations) {
-            let img = await mj.generateImage(MJprompt, (obj, progress) => {
-                process.stdout.write(progress + "%");
-            });
-            //console.log("\nMidjourney image generation completed:", img.url);
-            console.log("\nInitial Midjourney image generation completed\n");
-    
-            // Do something with the image
-            makeFileFromIMGobj(img);
-    
-            let upscaleQueue = [];
-            upscaleQueue.push(img);
-            let variationQueue = [];
-            variationQueue.push(img);
-            let zoomQueue = [];
-            let maxUpscalesCount = 0;
-            let maxVariationsCount = 0;
-            let maxZoomsCount = 0;
-            let loop = [true, true, true];
-    
-            // loop as long as there are images in the queue and we haven't reached the max number of generations
-            while (loop[0] || loop[1] || loop[2]) {
-                loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
-                loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
-                loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
-                console.log("Processing request queues....");
-                //console.log("upscaleQueue.length:", upscaleQueue.length);
-                //console.log("variationQueue.length:", variationQueue.length);
-                //console.log("zoomQueue.length:", zoomQueue.length);
-                while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
-                    let img = upscaleQueue.shift();
-                    let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
-                    makeFileFromIMGobj(upscaledImg);
-                    zoomQueue.push(upscaledImg);
-                    upscaledImg = await mj.upscaleImage(img, 2, img.prompt);
-                    makeFileFromIMGobj(upscaledImg);
-                    zoomQueue.push(upscaledImg);
-                    upscaledImg = await mj.upscaleImage(img, 3, img.prompt);
-                    makeFileFromIMGobj(upscaledImg);
-                    zoomQueue.push(upscaledImg);
-                    upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
-                    makeFileFromIMGobj(upscaledImg);
-                    zoomQueue.push(upscaledImg);
-                    maxUpscalesCount++;
-                }
-                //console.log("upscaleQueue.length:", upscaleQueue.length);
-                //console.log("variationQueue.length:", variationQueue.length);
-                //console.log("zoomQueue.length:", zoomQueue.length);
-                while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
-                    let img = variationQueue.shift();
-                    let variationImg = await mj.variation(img, 1, img.prompt);
-                    makeFileFromIMGobj(variationImg);
-                    upscaleQueue.push(variationImg);
-                    variationQueue.push(variationImg);
-                    variationImg = await mj.variation(img, 2, img.prompt);
-                    makeFileFromIMGobj(variationImg);
-                    upscaleQueue.push(variationImg);
-                    variationQueue.push(variationImg);
-                    variationImg = await mj.variation(img, 3, img.prompt);
-                    makeFileFromIMGobj(variationImg);
-                    upscaleQueue.push(variationImg);
-                    variationQueue.push(variationImg);
-                    variationImg = await mj.variation(img, 4, img.prompt);
-                    makeFileFromIMGobj(variationImg);
-                    upscaleQueue.push(variationImg);
-                    variationQueue.push(variationImg);
-                    maxVariationsCount++;
-                }
-                //console.log("upscaleQueue.length:", upscaleQueue.length);
-                //console.log("variationQueue.length:", variationQueue.length);
-                //console.log("zoomQueue.length:", zoomQueue.length);
-                while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
-                    let img = zoomQueue.shift();
-                    let zoomedImg = await mj.zoomOut(img, img.prompt);
-                    makeFileFromIMGobj(zoomedImg);
-                    variationQueue.push(zoomedImg);
-                    upscaleQueue.push(zoomedImg);
-                    maxZoomsCount++;
-                }
-            }
-            maxGenerationsCount++;
-        }
-        mj.close()
-    }
-
-    async makeFileFromIMGobj(img, filename = "") {
-        if (filename == "") {
-            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
-            const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
-            const regex = new RegExp(regexString);
-            const matches = regex.exec(img.url);
-            try {
-                filename = matches[0];
-            } catch (e) {
-                console.log("Error: Could not parse filename from url. Using default filename.");
-                filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
-                console.log("filename:", filename);
-            }
-            await sharp(response.data).toFile("output/" + filename + '.png');
-        } else {
-            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
-            await sharp(response.data).toFile("output/" + filename + '.png');
-        }
-    }
-}
 
 intro();
 await setup();
