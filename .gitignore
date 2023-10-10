@@ -5,3 +5,4 @@ user.json
 .eslintrc.json
 *vscode
 *commands
+*.cloudf
