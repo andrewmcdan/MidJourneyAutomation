@@ -1,5 +1,7 @@
-// @TODO: need to get info from midjourney about current available time for user, then show this on the console
-//          when the app starts up.
+// @TODO: 
+// - add question to each mode to ask if you want to save the quad files
+// - add question to each mode to ask if you want to use a custom folder and sequential naming
+// - experiment with automatically upscaling with upscayl (https://github.com/upscayl/upscayl)
 
 import { MidjourneyDiscordBridge } from "midjourney-discord-bridge";
 
@@ -240,6 +242,13 @@ class MJ_Handler {
     }
 
     async makeFileFromIMGobj(img, filename = "") {
+        try {
+            if (!fs.existsSync("output/")) {
+                fs.mkdirSync("output/");
+            }
+        } catch (err) {
+            console.log(err);
+        }
         if (filename == "") {
             const response = await axios.get(img.url, { responseType: 'arraybuffer' });
             const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
@@ -252,6 +261,7 @@ class MJ_Handler {
                 filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
                 console.log("filename:", filename);
             }
+
             await sharp(response.data).toFile("output/" + filename + '.png');
         } else {
             const response = await axios.get(img.url, { responseType: 'arraybuffer' });
@@ -620,6 +630,17 @@ const askInfiniteQuestions = () => {
     return inquirer.prompt(questions);
 }
 
+const pressEnterToReturnToMenu = () => {
+    const questions = [
+        {
+            name: 'ENTER',
+            type: 'input',
+            message: 'Press enter to return to the main menu.'
+        }
+    ];
+    return inquirer.prompt(questions);
+}
+
 const customFolderQuestion = () => {
     const questions = [
         {
@@ -853,6 +874,8 @@ async function run() {
                 console.log("Show loaded themes, prompts, and options");
                 // print the info from the prompts file
                 printPromptsFile();
+                // wait for enter to be pressed
+                await pressEnterToReturnToMenu();
                 break;
             case "2":
                 clearScreenBelowIntro();
