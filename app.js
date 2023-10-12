@@ -10,12 +10,15 @@ import sharp from 'sharp';
 //import { s } from "@sapphire/shapeshift";
 import fs from 'fs';
 import { ChatGPTAPI } from 'chatgpt';
-import inquirer from 'inquirer';
+//import inquirer from 'inquirer';
+import { select, input, confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import figlet from 'figlet';
 import stringifyObject from 'stringify-object';
 import Discordie from "discordie";
 import express from "express";
+
+
 
 class MJ_Handler {
     constructor(config) {
@@ -374,43 +377,35 @@ async function setup() {
     // get list of guilds
     let guilds = await DiscordClient.Guilds.toArray();
 
-    const guildQuestion = [
-        {
-            name: 'GUILD',
-            type: 'list',
-            message: 'What is your server name?',
-            choices: guilds
-        }
-    ];
+    let guildsObjArray = [];
+    guilds.forEach((g) => {
+        guildsObjArray.push({ value: g.name });
+    });
 
     // ask for the guild
-    let guildAnswer = await inquirer.prompt(guildQuestion);
+    const guildAnswer = await select({message: 'What is your server name?', choices: guildsObjArray});
 
     // find the guild object from the answer name
     let guild;
     guilds.forEach((g, i) => {
-        if (g.name == guildAnswer.GUILD) guild = guilds[i];
+        if (g.name == guildAnswer) guild = guilds[i];
     });
 
     // get list of channels
     let channels = await DiscordClient.Channels.textForGuild(guild);
 
-    const channelQuestion = [
-        {
-            name: 'CHANNEL',
-            type: 'list',
-            message: 'Which channel would you like to use?',
-            choices: channels
-        }
-    ];
+    let channelsObjArray = [];
+    channels.forEach((c) => {
+        channelsObjArray.push({ value: c.name });
+    });
 
     // ask for the channel
-    let channelAnswer = await inquirer.prompt(channelQuestion);
+    const channelAnswer = await select({message: 'Which channel would you like to use?', choices: channelsObjArray});
 
     // find the channel object from the answer name
     let channel;
     channels.forEach((c, i) => {
-        if (c.name == channelAnswer.CHANNEL) channel = channels[i];
+        if (c.name == channelAnswer) channel = channels[i];
     });
 
     // set the guild id and channel id
@@ -455,15 +450,49 @@ async function sendChatGPTPrompt(prompt) {
             top_p: 0.8
         }
     });
+    // cancelTheGPT keeps track of whether the user has pressed enter to cancel the GPT
+    let cancelTheGPT = false;
+    // cancellation is a promise that will be resolved when the user presses enter to cancel the GPT.
+    // This is used to cancel the prompt is the user never presses enter.
+    let cancellation = inquirer.prompt({
+        type: 'input',
+        name: 'cancel',
+        message: 'Press enter to cancel and return to menu.'
+    }).then((answers) => {
+        cancelTheGPT = true;
+    });
+    // res is the response from chatgpt
+    let res = null;
+    // count is used to print a dot every 2 seconds to show that the GPT is still running
     let count = 0;
-    const res = await chatgpt.sendMessage(prompt,
+    // send the prompt to chatgpt
+    chatgpt.sendMessage(prompt,
         {
             onProgress: (partialResponse) => {
+                // every other time we get a partial response, print a dot
                 count++;
-                if (count % 2 == 0) process.stdout.write(".");
+                if(!cancelTheGPT) { // but only if the user hasn't pressed enter to cancel
+                    if (count % 2 == 0) {
+                        process.stdout.write(".");
+                    }
+                }
             }
+        }).then((response) => {
+            if(!cancelTheGPT) res = response; // set res to the response if the user hasn't pressed enter to cancel
         });
-    console.log("");
+    // wait for the response or for the user to press enter to cancel
+    while(res == null && !cancelTheGPT) {
+        await waitSeconds(1);
+    }
+    console.log("cancellation: " + stringifyObject(cancellation));
+    await waitSeconds(5);
+    if(cancellation.cancel != null) {
+        // cancel the cancellation promise
+        cancellation.cancel();
+        console.log("prompt cancelled");
+        await waitSeconds(2);
+    }
+    if(cancelTheGPT) return "";
     return res.text;
 }
 
@@ -477,28 +506,43 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
     chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";;
-    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
+    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     //console.log(chatResponse);
     return chatResponse;
 }
 
-async function waitSeconds(count) {
-    await new Promise(resolve => setTimeout(resolve, count * 1000));
+async function waitSeconds(count, cancelable = false) {
+    let confirmation = null;
+    return await new Promise((resolve) => {
+        if (cancelable) {
+            confirmation = inquirer.prompt({
+                type: 'confirm',
+                name: 'wait',
+                message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.'
+            }).then((answers) => {
+                resolve(true);
+            });
+        }
+        setTimeout(() => {
+            resolve(false);
+            if(confirmation != null) confirmation.cancel();
+        }, count * 1000);
+    });
 };
 
 const clearScreenBelowIntro = () => {
     let screenWidth = process.stdout.columns;
     let screenHeight = process.stdout.rows;
     let introHeight = 22;
-    process.stdout.cursorTo(0,introHeight);
+    process.stdout.cursorTo(0, introHeight);
     // clear the screen below the intro
     for (let i = introHeight; i < screenHeight; i++) {
         process.stdout.clearLine();
-        process.stdout.cursorTo(0,i);
+        process.stdout.cursorTo(0, i);
     }
     // move the cursor back to the top
-    process.stdout.cursorTo(0,introHeight);
+    process.stdout.cursorTo(0, introHeight);
 }
 
 const intro = () => {
@@ -593,41 +637,27 @@ const printMainMenu = () => {
     console.log(chalk.white("0. Exit"));
 }
 
-const askMenuOption = () => {
-    const questions = [
-        {
-            name: 'OPTION',
-            type: 'input',
-            message: 'What is your choice?'
+
+const askMenuOption = async (validate = null) => {
+    if(validate == null) return await input({message: 'What is your choice?'});
+    else {
+        let valid = false;
+        let answer = "";
+        while (!valid) {
+            answer = await input({message: 'What is your choice?'});
+            valid = validate(answer);
         }
-    ];
-    return inquirer.prompt(questions);
+        return answer;
+    }
 }
 
-const askInfiniteQuestions = () => {
-    const questions = [
-        {
-            name: 'SENDTOCHATGPT',
-            type: 'confirm',
-            message: 'Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ. (y/n)'
-        },
-        {
-            name: 'SAVEQUADS',
-            type: 'confirm',
-            message: 'Do you want to save the quad files? (y/n)'
-        },
-        {
-            name: 'CUSTOMFILENAME',
-            type: 'confirm',
-            message: 'Use custom folder and sequential naming? (y/n)'
-        },
-        {
-            name: 'PROMPT',
-            type: 'input',
-            message: 'What is your prompt?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askInfiniteQuestions = async () => {
+    let res = {};
+    res.SENDTOCHATGPT = await confirm({message: 'Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.'});
+    res.SAVEQUADS = await confirm({message: 'Do you want to save the quad files?'});
+    res.CUSTOMFILENAME = await confirm({message: 'Use custom folder and sequential naming?'});
+    res.PROMPT = await input({message: 'What is your prompt?'});
+    return res;
 }
 
 const pressEnterToReturnToMenu = () => {
@@ -862,13 +892,17 @@ async function run() {
 
     let runAsk = false;
 
-    while (menuOption.OPTION != "0") {
+    while (menuOption != "0") {
         // print menu options
         printMainMenu();
         // ask for the menu option
-        menuOption = await askMenuOption();
+        menuOption = await askMenuOption((value)=>{
+            value = parseInt(value);
+            if(value >= 0 <= 11) return true; 
+            else return false;
+        });
         // if option 1, modify prompts
-        switch (menuOption.OPTION) {
+        switch (menuOption) {
             case "1":
                 clearScreenBelowIntro();
                 console.log("Show loaded themes, prompts, and options");
@@ -880,43 +914,55 @@ async function run() {
             case "2":
                 clearScreenBelowIntro();
                 console.log("Modify prompts");
-                let modifyPromptsMenuOption = { OPTION: "" };
-                while (modifyPromptsMenuOption.OPTION != "0") {
+                let modifyPromptsMenuOption = "";
+                while (modifyPromptsMenuOption != "0") {
                     printPromptsFile("prompts");
                     // print the modify prompts menu
                     printModifyPromptsMenu();
                     // ask for the menu option
-                    modifyPromptsMenuOption = await askMenuOption();
-                    switch (modifyPromptsMenuOption.OPTION) {
+                    modifyPromptsMenuOption = await askMenuOption((value)=>{
+                        value = parseInt(value);
+                        if(value >= 0 <= 3) return true; 
+                        else return false;
+                    });
+                    switch (modifyPromptsMenuOption) {
                         case "1":
                             console.log("Add prompt");
                             // ask for the prompt
                             let addPrompt = await askPromptQuestionShort();
                             // add the prompt to the prompts object
                             if (prompts.prompts == null) prompts.prompts = [];
-                            prompts.prompts.push(addPrompt.PROMPT);
+                            prompts.prompts.push(addPrompt);
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
                         case "2":
                             console.log("Remove prompt");
                             // ask for the prompt number
-                            let removePrompt = await askMenuOption();
+                            let removePrompt = await askMenuOption((value)=>{
+                                value = parseInt(value);
+                                if(value >= 0 <= prompts.prompts.length) return true; 
+                                else return false;
+                            });
                             // remove the prompt from the prompts object
                             if (prompts.prompts == null) prompts.prompts = [];
-                            prompts.prompts.splice(parseInt(removePrompt.OPTION) - 1, 1);
+                            prompts.prompts.splice(parseInt(removePrompt) - 1, 1);
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
                         case "3":
                             console.log("Modify prompt");
                             // ask for the prompt number
-                            let modifyPrompt = await askMenuOption();
+                            let modifyPrompt = await askMenuOption((value)=>{
+                                value = parseInt(value);
+                                if(value >= 0 <= prompts.prompts.length) return true; 
+                                else return false;
+                            });
                             // ask for the prompt
                             let modifyPromptQuestions = await askPromptQuestionShort();
                             // modify the prompt in the prompts object
                             if (prompts.prompts == null) prompts.prompts = [];
-                            prompts.prompts[parseInt(modifyPrompt.OPTION) - 1] = modifyPromptQuestions.PROMPT;
+                            prompts.prompts[parseInt(modifyPrompt) - 1] = modifyPromptQuestions.PROMPT;
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
@@ -938,8 +984,12 @@ async function run() {
                     // print the modify themes menu
                     printModifyThemesMenu();
                     // ask for the menu option
-                    modifyThemesMenuOption = await askMenuOption();
-                    switch (modifyThemesMenuOption.OPTION) {
+                    modifyThemesMenuOption = await askMenuOption((value)=>{
+                        value = parseInt(value);
+                        if(value >= 0 <= 3) return true; 
+                        else return false;
+                    });
+                    switch (modifyThemesMenuOption) {
                         case "1":
                             console.log("Add theme");
                             // ask for the theme
@@ -960,10 +1010,14 @@ async function run() {
                         case "2":
                             console.log("Remove theme");
                             // ask for the theme number
-                            removeTheme = await askMenuOption();
+                            removeTheme = await askMenuOption((value)=>{
+                                value = parseInt(value);
+                                if(value >= 0 <= prompts.themes.length) return true; 
+                                else return false;
+                            });
                             // remove the theme from the prompts object
                             if (prompts.themes == null) prompts.themes = [];
-                            prompts.themes.splice(parseInt(removeTheme.OPTION) - 1, 1);
+                            prompts.themes.splice(parseInt(removeTheme) - 1, 1);
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
@@ -971,7 +1025,11 @@ async function run() {
                             console.log("Modify theme");
                             //console.log("Which theme do you want to modify?");
                             // ask for the theme number
-                            let modifyTheme = await askMenuOption();
+                            let modifyTheme = await askMenuOption((value)=>{
+                                value = parseInt(value);
+                                if(value >= 0 <= prompts.themes.length) return true; 
+                                else return false;
+                            });
                             // ask for the theme
                             let modifyThemeQuestions = await askThemeQuestionsShort();
                             // modify the theme in the prompts object
@@ -983,7 +1041,7 @@ async function run() {
                                 keywords: modifyThemeKeywords,
                                 style: modifyThemeQuestions.STYLE
                             };
-                            prompts.themes[parseInt(modifyTheme.OPTION) - 1] = modifyThemeObject;
+                            prompts.themes[parseInt(modifyTheme) - 1] = modifyThemeObject;
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
@@ -999,14 +1057,18 @@ async function run() {
             case "4":
                 clearScreenBelowIntro();
                 console.log("Modify options (applies to all generations)");
-                let modifyOptionsMenuOption = { OPTION: "" };
-                while (modifyOptionsMenuOption.OPTION != "0") {
+                let modifyOptionsMenuOption = "";
+                while (modifyOptionsMenuOption != "0") {
                     printPromptsFile("options");
                     // print the modify options menu
                     printModifyOptionsMenu();
                     // ask for the menu option
-                    modifyOptionsMenuOption = await askMenuOption();
-                    switch (modifyOptionsMenuOption.OPTION) {
+                    modifyOptionsMenuOption = await askMenuOption((value)=>{
+                        value = parseInt(value);
+                        if(value >= 0 <= 3) return true; 
+                        else return false;
+                    });
+                    switch (modifyOptionsMenuOption) {
                         case "1":
                             console.log("Add option");
                             // ask for the option
@@ -1026,17 +1088,25 @@ async function run() {
                         case "2":
                             console.log("Remove option");
                             // ask for the option number
-                            let removeOption = await askMenuOption();
+                            let removeOption = await askMenuOption((value)=>{
+                                value = parseInt(value);
+                                if(value >= 0 <= prompts.options.length) return true; 
+                                else return false;
+                            });
                             // remove the option from the prompts object
                             if (prompts.options == null) prompts.options = [];
-                            prompts.options.splice(parseInt(removeOption.OPTION) - 1, 1);
+                            prompts.options.splice(parseInt(removeOption) - 1, 1);
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
                         case "3":
                             console.log("Modify option");
                             // ask for the option number
-                            let modifyOption = await askMenuOption();
+                            let modifyOption = await askMenuOption((value)=>{
+                                value = parseInt(value);
+                                if(value >= 0 <= prompts.options.length) return true; 
+                                else return false;
+                            });
                             // ask for the option
                             let modifyOptionQuestions = await askOptionQuestions();
                             // modify the option in the prompts object
@@ -1047,7 +1117,7 @@ async function run() {
                                 value: modifyOptionQuestions.VALUE,
                                 enabled: modifyOptionQuestions.ENABLED == "y" || modifyOptionQuestions.ENABLED == "Y" ? true : false
                             };
-                            prompts.options[parseInt(modifyOption.OPTION) - 1] = modifyOptionObject;
+                            prompts.options[parseInt(modifyOption) - 1] = modifyOptionObject;
                             // save the prompts object to the prompts.json file
                             fs.writeFileSync('prompts.json', JSON.stringify(prompts));
                             break;
@@ -1066,14 +1136,18 @@ async function run() {
                 // print the themes
                 printPromptsFile("themes");
                 // ask for the theme number
-                themeChoice = await askMenuOption();
+                themeChoice = await askMenuOption((value)=>{
+                    value = parseInt(value);
+                    if(value >= 0 <= prompts.themes.length) return true; 
+                    else return false;
+                });
                 basicAnswers = await askImageGenQuestions();
                 //split the theme keywords into an array
-                themeKeywords = prompts.themes[parseInt(themeChoice.OPTION) - 1].keywords;
+                themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
                 // create the theme object
                 theme = {
                     keywords: themeKeywords,
-                    style: prompts.themes[parseInt(themeChoice.OPTION) - 1].style
+                    style: prompts.themes[parseInt(themeChoice) - 1].style
                 };
                 if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
@@ -1082,6 +1156,7 @@ async function run() {
                 res = res.replaceAll("-", " ");
                 if (res.indexOf("{") == -1) {
                     console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                    await waitSeconds(2);
                     break;
                 }
                 res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
@@ -1124,6 +1199,10 @@ async function run() {
                 res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
+                if (res.indexOf("{") == -1) {
+                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                    break;
+                }
                 res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
                 //log the prompt
                 res.prompts.forEach((prompt, i) => {
@@ -1152,9 +1231,13 @@ async function run() {
                 // print the prompts
                 printPromptsFile("prompts");
                 // ask for the prompt number
-                let promptChoice2 = await askMenuOption();
+                let promptChoice2 = await askMenuOption((value)=>{
+                    value = parseInt(value);
+                    if(value >= 0 <= prompts.prompts.length) return true; 
+                    else return false;
+                });
                 // set the prompt answer
-                promptAnswer[0] = prompts.prompts[parseInt(promptChoice2.OPTION) - 1];
+                promptAnswer[0] = prompts.prompts[parseInt(promptChoice2) - 1];
                 // ask basic questions
                 basicAnswers = await askImageGenQuestions();
                 // set the answers
@@ -1196,9 +1279,11 @@ async function run() {
                 if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    await midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    runningProcess = true;
                 } else {
-                    await midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    runningProcess = true;
                 }
                 break;
             case "11":
@@ -1234,18 +1319,17 @@ async function run() {
         }
 
         if (runningProcess) {
-            console.log("Running...");
-            let quitAnswer = await askQuitQuestion();
-            if (quitAnswer.QUIT) {
-                runningProcess = false;
-                midjourney.killProcess();
-            }
+            MJlogger({ runner: "running" });
         }
+
+        let loopCount = 1;
         while (runningProcess) {
-            process.stdout.cursorTo(0, 0);
-            let windowSize = process.stdout.getWindowSize();
-            process.stdout.write(".");
-            await waitSeconds(1);
+            // create string of dots of length loopCount
+            let dots = ".".repeat(loopCount);
+            MJlogger({ runner: dots });
+            loopCount++;
+            let end = await waitSeconds(1);
+            if (loopCount > 5) loopCount = 1;
         }
 
         if (runAsk) {
@@ -1274,26 +1358,26 @@ async function run() {
                     console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                     // run the main function
                     await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
-
-                    printRunComplete();
-                    console.log("Pausing for a bit between runs...");
-                    console.log("");
-                    for (let i = 0; i < (userConfig.wait_time_after_done < 5 ? 5 : userConfig.wait_time_after_done * 2); i++) {
-                        process.stdout.write(".");
-                        await waitSeconds(0.5);
+                    if(i < promptCount - 1) {
+                        printRunComplete();
+                        console.log("Pausing for a bit between runs...");
+                        console.log("");
+                        for (let i = 0; i < (userConfig.wait_time_after_done < 5 ? 5 : userConfig.wait_time_after_done * 2); i++) {
+                            process.stdout.write(".");
+                            await waitSeconds(0.5);
+                        }
                     }
                     console.log("");
                 }
             }
             // print done message
             printDone();
+            await waitSeconds(3);
             runAsk = false;
         }
         intro();
     }
 }
-
-
 
 intro();
 await setup();
