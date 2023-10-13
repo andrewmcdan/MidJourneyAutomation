@@ -507,16 +507,20 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
 }
 
 async function waitSeconds(count, cancelable = false) {
+    // this holds the promise returned by the confirm function
     let confirmation = null;
     return await new Promise((resolve) => {
+        // if the wait is cancelable, set the confirmation promise to the promise returned by the confirm function
         if (cancelable) {
             confirmation = confirm({message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.'}).then(() => {
+                // if the user presses enter, resolve the promise with true
                 resolve(true);
             });
         }
         setTimeout(() => {
-            resolve(false);
+            // if the user hasn't pressed enter to cancel, cancel the confirmation promise and resolve the wait promise with false
             if(confirmation != null) confirmation.cancel();
+            resolve(false);
         }, count * 1000);
     });
 };
@@ -627,15 +631,19 @@ const printMainMenu = () => {
     console.log(chalk.white("0. Exit"));
 }
 
-
+// main menu
+// params:  validate is a function that returns true if the answer is valid, otherwise it returns false
+// return:  the answer to the question as a string
 const askMenuOption = async (validate = null) => {
+    // if validate is null, just ask for input
     if(validate == null) return await input({message: 'What is your choice?'});
-    else {
+    else { // otherwise, ask for input and validate it
         let valid = false;
         let answer = "";
-        while (!valid) {
+        while (!valid) { // keep asking for input until it is valid
             answer = await input({message: 'What is your choice?'});
-            valid = validate(answer);
+            // if the answer is valid, set valid to true and return the answer
+            valid = validate(answer); // validate is a function that returns true if the answer is valid
         }
         return answer;
     }
