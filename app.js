@@ -274,9 +274,15 @@ class MJ_Handler {
 }
 
 // get user config from file
-const userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
+let userconfig;
+try{
+    userconfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
+}catch(e){
+    console.log("Error: Could not read user.json. Please make sure it exists and is valid JSON.");
+    process.exit();
+}
 
-const app = express()
+const app = express();
 
 const doLogin = async () => {
     console.log("Log in to Discord using browser:");
@@ -340,14 +346,18 @@ const doLogin = async () => {
 var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
 var DiscordieReady = false;
-
 var midjourney = null;
-
 var guild_id_from_discordie = "";
 var channel_id_from_discordie = "";
 
 // get data from prompts file
-let prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
+let prompts;
+try{
+    prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
+}catch(e){
+    console.log("Error: Could not read prompts.json. Please make sure it exists and is valid JSON.");
+    process.exit();
+}
 
 async function setup() {
     if (userConfig.token == "" || userConfig.token == null) {
@@ -1055,7 +1065,14 @@ async function run() {
                     await waitSeconds(2);
                     break;
                 }
-                res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                try{
+                    res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                }
+                catch(e){
+                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                    await waitSeconds(2);
+                    break;
+                }
                 //log the prompt
                 res.prompts.forEach((prompt, i) => {
                     if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
@@ -1100,7 +1117,14 @@ async function run() {
                     console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
                     break;
                 }
-                res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                try{
+                    res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                }
+                catch(e){
+                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                    await waitSeconds(2);
+                    break;
+                }
                 //log the prompt
                 res.prompts.forEach((prompt, i) => {
                     if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
