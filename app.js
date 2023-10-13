@@ -510,11 +510,7 @@ async function waitSeconds(count, cancelable = false) {
     let confirmation = null;
     return await new Promise((resolve) => {
         if (cancelable) {
-            confirmation = inquirer.prompt({
-                type: 'confirm',
-                name: 'wait',
-                message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.'
-            }).then((answers) => {
+            confirmation = confirm({message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.'}).then(() => {
                 resolve(true);
             });
         }
