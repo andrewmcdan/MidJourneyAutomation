@@ -352,7 +352,7 @@ let prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
 async function setup() {
     if (userConfig.token == "" || userConfig.token == null) {
         userConfig.token = await doLogin();
-        fs.writeFileSync('user.json', JSON.stringify(userConfig));
+        fs.writeFileSync('user.json', JSON.stringify(userConfig,null,2));
     }
 
     DiscordClient.connect({
@@ -819,7 +819,7 @@ async function run() {
                             if (prompts.prompts == null) prompts.prompts = [];
                             prompts.prompts.push(addPrompt);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "2":
                             console.log("Remove prompt");
@@ -833,7 +833,7 @@ async function run() {
                             if (prompts.prompts == null) prompts.prompts = [];
                             prompts.prompts.splice(parseInt(removePrompt) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "3":
                             console.log("Modify prompt");
@@ -849,7 +849,7 @@ async function run() {
                             if (prompts.prompts == null) prompts.prompts = [];
                             prompts.prompts[parseInt(modifyPrompt) - 1] = modifyPromptQuestions.PROMPT;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "0":
                             console.log("Exit");
@@ -890,7 +890,7 @@ async function run() {
                             };
                             prompts.themes.push(theme);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "2":
                             console.log("Remove theme");
@@ -904,7 +904,7 @@ async function run() {
                             if (prompts.themes == null) prompts.themes = [];
                             prompts.themes.splice(parseInt(removeTheme) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "3":
                             console.log("Modify theme");
@@ -928,7 +928,7 @@ async function run() {
                             };
                             prompts.themes[parseInt(modifyTheme) - 1] = modifyThemeObject;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "0":
                             console.log("Exit");
@@ -968,7 +968,7 @@ async function run() {
                             };
                             prompts.options.push(option);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "2":
                             console.log("Remove option");
@@ -982,7 +982,7 @@ async function run() {
                             if (prompts.options == null) prompts.options = [];
                             prompts.options.splice(parseInt(removeOption) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "3":
                             console.log("Modify option");
@@ -1004,7 +1004,7 @@ async function run() {
                             };
                             prompts.options[parseInt(modifyOption) - 1] = modifyOptionObject;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
                             break;
                         case "0":
                             console.log("Exit");
