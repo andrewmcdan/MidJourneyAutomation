@@ -703,7 +703,12 @@ const askThemeQuestions = async () => {
     let res = {};
     res.THEME = await input({message: 'What are your theme keywords? (comma separated)'});
     res.STYLE = await input({message: 'What is your style?'});
-    res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+    let chatGPTCount = 100000;
+    while(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
+        res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+        chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
+        if(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
+    }
     res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
     res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
     res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
@@ -713,7 +718,12 @@ const askThemeQuestions = async () => {
 
 const askImageGenQuestions = async () => {
     let res = {};
-    res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+    let chatGPTCount = 100000;
+    while(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
+        res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+        chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
+        if(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
+    }
     res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
     res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
     res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
