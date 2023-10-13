@@ -493,14 +493,14 @@ async function sendChatGPTPrompt(prompt) {
 // generate a prompt from a theme object
 async function generatePromptFromThemKeywords(theme, count = 10) {
     console.log("Generating prompts from theme: ", JSON.stringify(theme));
-    let chatPrompt = "your role is design prompts for an AI image generator. Your theme should be based upon the following keywords but you can get creative with it: ";
+    let chatPrompt = "your role is to design theme based prompts for an AI image generator, midjourney. Your theme should be based upon the following keywords but you can get creative with it: ";
     theme.keywords.forEach((themeKeyword) => {
         chatPrompt += themeKeyword + ", ";
     });
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
-    chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud(Moebius) , taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";;
-    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related";
+    chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud (Moebius), taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";
+    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related.";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     //console.log(chatResponse);
     return chatResponse;
