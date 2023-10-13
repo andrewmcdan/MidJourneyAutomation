@@ -454,13 +454,7 @@ async function sendChatGPTPrompt(prompt) {
     let cancelTheGPT = false;
     // cancellation is a promise that will be resolved when the user presses enter to cancel the GPT.
     // This is used to cancel the prompt is the user never presses enter.
-    let cancellation = inquirer.prompt({
-        type: 'input',
-        name: 'cancel',
-        message: 'Press enter to cancel and return to menu.'
-    }).then((answers) => {
-        cancelTheGPT = true;
-    });
+    let cancellation = input({message: 'Press enter to cancel and return to menu.'}).then(() => {cancelTheGPT = true;});
     // res is the response from chatgpt
     let res = null;
     // count is used to print a dot every 2 seconds to show that the GPT is still running
@@ -484,15 +478,15 @@ async function sendChatGPTPrompt(prompt) {
     while(res == null && !cancelTheGPT) {
         await waitSeconds(1);
     }
-    console.log("cancellation: " + stringifyObject(cancellation));
-    await waitSeconds(5);
     if(cancellation.cancel != null) {
         // cancel the cancellation promise
         cancellation.cancel();
-        console.log("prompt cancelled");
-        await waitSeconds(2);
     }
-    if(cancelTheGPT) return "";
+    if(cancelTheGPT) {
+        console.log("Prompt cancelled");
+        await waitSeconds(1);
+        return null;
+    } 
     return res.text;
 }
 
@@ -660,188 +654,75 @@ const askInfiniteQuestions = async () => {
     return res;
 }
 
-const pressEnterToReturnToMenu = () => {
-    const questions = [
-        {
-            name: 'ENTER',
-            type: 'input',
-            message: 'Press enter to return to the main menu.'
-        }
-    ];
-    return inquirer.prompt(questions);
+const pressEnterToReturnToMenu = async () => {
+    let res = {};
+    res.ENTER = await input({message: 'Press enter to return to the main menu.'});
+    return res;
 }
 
-const customFolderQuestion = () => {
-    const questions = [
-        {
-            name: 'FOLDER',
-            type: 'input',
-            message: 'What is your folder name?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const customFolderQuestion = async () => {
+    let res = {};
+    res.FOLDER = await input({message: 'What is your folder name?'});
+    return res;
 }
 
-const readyToRun = () => {
-    const questions = [
-        {
-            name: 'READY',
-            type: 'confirm',
-            message: 'Ready to run? (y/n)'
-        }
-    ];
-    return inquirer.prompt(questions);
+const readyToRun = async () => {
+    let res = {};
+    res.READY = await confirm({message: 'Ready to run?'});
+    return res;
 }
 
-const askPromptQuestions = () => {
-    const questions = [
-        {
-            name: 'PROMPT',
-            type: 'input',
-            message: 'What is your prompt?'
-        },
-        {
-            name: 'GENERATIONS',
-            type: 'input',
-            message: 'How many runs per prompt do you want to run?'
-        },
-        {
-            name: 'UPSCALE',
-            type: 'input',
-            message: 'How many generations of upscaling do you want to allow?'
-        },
-        {
-            name: 'VARIATION',
-            type: 'input',
-            message: 'How many generations of variations do you want to allow?'
-        },
-        {
-            name: 'ZOOM',
-            type: 'input',
-            message: 'How many generations of zoom out do you want to allow?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askPromptQuestions = async () => {
+    let res = {};
+    res.PROMPT = await input({message: 'What is your prompt?'});
+    res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
+    res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
+    res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
+    res.ZOOM = await input({message: 'How many generations of zoom out do you want to allow?'});
+    return res;
 }
 
-const askPromptQuestionShort = () => {
-    const questions = [
-        {
-            name: 'PROMPT',
-            type: 'input',
-            message: 'What is your prompt?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askPromptQuestionShort = async () => {
+    let res = {};
+    res.PROMPT = await input({message: 'What is your prompt?'});
+    return res;
 }
 
-const askThemeQuestionsShort = () => {
-    const questions = [
-        {
-            name: 'THEME',
-            type: 'input',
-            message: 'What are your theme keywords? (comma separated)'
-        },
-        {
-            name: 'STYLE',
-            type: 'input',
-            message: 'What is your style?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askThemeQuestionsShort = async () => {
+    let res = {};
+    res.THEME = await input({message: 'What are your theme keywords? (comma separated)'});
+    res.STYLE = await input({message: 'What is your style?'});
+    return res;
 }
 
-const askThemeQuestions = () => {
-    const questions = [
-        {
-            name: 'THEME',
-            type: 'input',
-            message: 'What are your theme keywords? (comma separated)'
-        },
-        {
-            name: 'STYLE',
-            type: 'input',
-            message: 'What is your style?'
-        },
-        {
-            name: 'CHATGPTGENERATIONS',
-            type: 'input',
-            message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'
-        },
-        {
-            name: 'GENERATIONS',
-            type: 'input',
-            message: 'How many runs per prompt do you want to run?'
-        },
-        {
-            name: 'UPSCALE',
-            type: 'input',
-            message: 'How many generations of upscaling do you want to allow?'
-        },
-        {
-            name: 'VARIATION',
-            type: 'input',
-            message: 'How many generations of variations do you want to allow?'
-        },
-        {
-            name: 'ZOOM',
-            type: 'input',
-            message: 'How many generations of zoom out do you want to allow?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askThemeQuestions = async () => {
+    let res = {};
+    res.THEME = await input({message: 'What are your theme keywords? (comma separated)'});
+    res.STYLE = await input({message: 'What is your style?'});
+    res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+    res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
+    res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
+    res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
+    res.ZOOM = await input({message: 'How many generations of zoom out do you want to allow?'});
+    return res;
 }
 
-const askImageGenQuestions = () => {
-    const questions = [
-        {
-            name: 'CHATGPTGENERATIONS',
-            type: 'input',
-            message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'
-        },
-        {
-            name: 'GENERATIONS',
-            type: 'input',
-            message: 'How many runs per prompt do you want to run?'
-        },
-        {
-            name: 'UPSCALE',
-            type: 'input',
-            message: 'How many generations of upscaling do you want to allow?'
-        },
-        {
-            name: 'VARIATION',
-            type: 'input',
-            message: 'How many generations of variations do you want to allow?'
-        },
-        {
-            name: 'ZOOM',
-            type: 'input',
-            message: 'How many generations of zoom out do you want to allow?'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askImageGenQuestions = async () => {
+    let res = {};
+    res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+    res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
+    res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
+    res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
+    res.ZOOM = await input({message: 'How many generations of zoom out do you want to allow?'});
+    return res;
 }
 
-const askOptionQuestions = () => {
-    const questions = [
-        {
-            name: 'NAME',
-            type: 'input',
-            message: 'What is the option name?'
-        },
-        {
-            name: 'VALUE',
-            type: 'input',
-            message: 'What is the option value?'
-        },
-        {
-            name: 'ENABLED',
-            type: 'input',
-            message: 'Is the option enabled? (y/n)'
-        }
-    ];
-    return inquirer.prompt(questions);
+const askOptionQuestions = async () => {
+    let res = {};
+    res.NAME = await input({message: 'What is the option name?'});
+    res.VALUE = await input({message: 'What is the option value?'});
+    res.ENABLED = await input({message: 'Is the option enabled? (y/n)'});
+    return res;
 }
 
 const printModifyPromptsMenu = () => {
@@ -1152,6 +1033,7 @@ async function run() {
                 if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
                 res = await generatePromptFromThemKeywords(theme, basicAnswers.CHATGPTGENERATIONS);
+                if(res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
                 if (res.indexOf("{") == -1) {
@@ -1197,6 +1079,7 @@ async function run() {
                 // generate the prompt from the theme
                 if (themeQuestions.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) themeQuestions.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
+                if(res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
                 if (res.indexOf("{") == -1) {
