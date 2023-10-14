@@ -3,22 +3,21 @@
 // - add question to each mode to ask if you want to use a custom folder and sequential naming
 // - add feature to upload an image to Midjourney and run it with a keyword. Perhaps have a list of keywords to choose from, or run the whole list.
 
-import { MidjourneyDiscordBridge } from "midjourney-discord-bridge";
+// Import necessary libraries and modules
+import { MidjourneyDiscordBridge } from "midjourney-discord-bridge"; // Importing the 'MidjourneyDiscordBridge' class from a package.
+import axios from "axios"; // Importing the 'axios' library for making HTTP requests.
+import sharp from 'sharp'; // Importing the 'sharp' library for image processing.
+import fs from 'fs'; // Importing the 'fs' library for file system operations.
+import { ChatGPTAPI } from 'chatgpt'; // Importing the 'ChatGPTAPI' class from a package.
+import { select, input, confirm } from '@inquirer/prompts'; // Importing functions for interactive command-line prompts.
+import chalk from 'chalk'; // Importing 'chalk' for terminal text styling.
+import figlet from 'figlet'; // Importing 'figlet' for creating ASCII art text.
+import stringifyObject from 'stringify-object'; // Importing a module for converting objects to strings.
+import Discordie from "discordie"; // Importing the 'Discordie' library for Discord bot functionality.
+import express from "express"; // Importing the 'express' library for creating a web server.
+import Upscaler from 'ai-upscale-module'; // Importing the 'Upscaler' class from a package.
 
-import axios from "axios";
-import sharp from 'sharp';
-//import { s } from "@sapphire/shapeshift";
-import fs from 'fs';
-import { ChatGPTAPI } from 'chatgpt';
-//import inquirer from 'inquirer';
-import { select, input, confirm } from '@inquirer/prompts';
-import chalk from 'chalk';
-import figlet from 'figlet';
-import stringifyObject from 'stringify-object';
-import Discordie from "discordie";
-import express from "express";
-import Upscaler from 'ai-upscale-module';
-
+// Define a set of question messages for prompts
 const questionMessages = {
     SENDTOCHATGPT: "Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.",
     SAVEQUADS: "Do you want to save the quad files?",
@@ -33,21 +32,37 @@ const questionMessages = {
     THEME: 'What are your theme keywords? (comma separated)',
     AIUPSCALE: 'Do you want to run additional AI upscale on the images? (This may take a long time)'
 };
+
+// Initialize a variable to control logging
 let MJloggerEnabled = false;
+
+// fileCounter is used for naming files when naming of files fails in multiple ways
+let fileCounter = 0;
+
+// Create an instance of the 'Upscaler' class with a default output path
 let upscaler = new Upscaler({ defaultOutputPath: "output/upscaled/" });
+
+// Define a destination path for the upscaled images to be used later
 const upscaleDest = "output/upscaled/";
 
 class MJ_Handler {
     constructor(config) {
+        // initialize the config and check for required values. Throw an error if any are missing.
+        if (config == null || config == undefined) throw new Error("Configuration must be provided");
         this.config = config;
+        if (this.config.token == null || this.config.token == undefined) throw new Error("Token must be provided");
+        if (this.config.guild_id == null || this.config.guild_id == undefined) throw new Error("Guild ID must be provided");
+        if (this.config.channel_id == null || this.config.channel_id == undefined) throw new Error("Channel ID must be provided");
         this.mj = new MidjourneyDiscordBridge(config.token, config.guild_id, config.channel_id);
     }
 
+    // register a callback function to be called when the MJ logger is called
     registerMJLoggerCB(cb) {
         this.mj.registerLoggerCB(cb);
         this.logger = cb;
     }
 
+    // close the MJ instance
     async close() {
         await this.mj.close();
     }
@@ -55,10 +70,12 @@ class MJ_Handler {
     runningProcess = false;
     killCalled = false;
 
+    // kill the current process
     async killProcess() {
         this.killCalled = true;
     }
 
+    // check if the kill process was called and exit the loop if it was
     breakout() {
         if (this.killCalled) {
             this.runningProcess = false;
@@ -67,21 +84,35 @@ class MJ_Handler {
         }
     }
 
+    // run an infinite zoom 
+    // MJprompt: the prompt to send to Midjourney
+    // saveQuadFiles: whether to save the quad files
+    // autoNameFiles: whether to automatically name using a counter or to use the name from the prompt / url
+    // folder: the folder name to save the files to. defaults to output
+    // aiUpscale: whether to run an additional AI upscale on the images
     async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false) {
+        // set the running process flag to true
         this.runningProcess = true;
-
+        // send the prompt to Midjourney and wait for the response. img is an object holding the response
         let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
+            // if the progress is not null, print it to the console
             if (progress != null) {
                 // process.stdout.write(progress + "%  ");
-                this.logger({ runner: progress + "%  " });
+                this.logger({ mj: progress + "%  " });
             }
+            // check if the kill process was called and exit the loop if it was
             this.breakout();
         });
-        console.log("\nInitial Midjourney image generation completed\n");
+        // at this point, we need to check if the kill process was called and exit the loop if it was
+        if (!this.runningProcess) return;
+        // console.log("\nInitial Midjourney image generation completed\n");
+        this.logger({ mj: "Initial Midjourney image generation completed" });
+        // if saveQuadFiles is true, save the quad files
         if (saveQuadFiles) this.makeFileFromIMGobj(img);
+        // set the image to zoom to the initial image
         let imgToZoom = img;
         let imgToScale = img;
-
+        // set the filename base to the folder name
         let filenameBase = folder + "/";
         // check to see if the folder exists, if not, create it
         try {
@@ -91,108 +122,141 @@ class MJ_Handler {
         } catch (err) {
             console.log(err);
         }
-
+        // set the file count to 1, used for naming the files when autoNameFiles is true
         let fileCount = 1;
+        // loop while the running process flag is true
         while (this.runningProcess) {
             // if the kill process was called, exit the loop
             this.breakout();
+            // generate a filename using the file count and the filename base
             let fileCountString = fileCount.toString().padStart(4, "0");
             let filename = filenameBase + fileCountString;
             // generate random number between 1 and 4
             let random1to4 = Math.floor(Math.random() * 4) + 1;
+            // upscale the image (random 1 to 4), and send the breakout function as a callback
             imgToZoom = await this.mj.upscaleImage(imgToScale, random1to4, img.prompt, this.breakout);
+            // at this point, we need to check if the kill process was called and exit the loop if it was
             if (!this.runningProcess) break;
+            // save the upscaled image and then AI upscale it again if aiUpscale is true
             await this.makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "", aiUpscale);
+            // run the zoom out function and send the breakout function as a callback
             imgToScale = await this.mj.zoomOut(imgToZoom, img.prompt, this.breakout);
+            // at this point, we need to check if the kill process was called and exit the loop if it was
             if (!this.runningProcess) break;
+            // if saveQuadFiles is true, save the quad files. Do not run AI upscale on the quad files
             if (saveQuadFiles) this.makeFileFromIMGobj(imgToScale, autoNameFiles ? filename : "");
+            // increment the file count for auto naming
             fileCount++;
         }
     }
 
-    async infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false) {
-        this.runningProcess = true;
-        //console.log("Starting infinite prompt variation upscales... (press q to quit)");
-        //const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
-        let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
-            if (progress != null) {
-                // process.stdout.write(progress + "%  ");
-                this.logger({ runner: progress + "%  " });
+    // run an infinite prompt->variation->upscale loop
+    // MJprompt: the prompt to send to Midjourney
+    // saveQuadFiles: whether to save the quad files
+    // autoNameFiles: whether to automatically name using a counter or to use the name from the prompt / url
+    // folder: the folder name to save the files to. defaults to output
+    // cb: unused?
+    // aiUpscale: whether to run an additional AI upscale on the images
+    infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false) {
+        return new Promise(async (resolve, reject) => {
+            // set the running process flag to true
+            this.runningProcess = true;
+            // send the prompt to Midjourney and wait for the response. img is an object holding the response
+            let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
+                // if the progress is not null, print it to the console
+                if (progress != null) {
+                    // process.stdout.write(progress + "%  ");
+                    this.logger({ mj: progress + "%  " });
+                }
+                // check if the kill process was called and exit the loop if it was
+                this.breakout();
+            });
+            // at this point, we need to check if the kill process was called and exit the loop if it was
+            if (!this.runningProcess) resolve();
+            // console.log("\nInitial Midjourney image generation completed");
+            this.logger({ mj: "Initial Midjourney image generation completed" });
+            // if saveQuadFiles is true, save the quad files
+            if (saveQuadFiles) await this.makeFileFromIMGobj(img);
+            // set the image to upscale to the initial image
+            let imgToUpscale = img;
+            let filenameBase = folder + "/";
+            // check if the folder exists, if not, create it
+            try {
+                if (!fs.existsSync("output/" + filenameBase)) {
+                    fs.mkdirSync("output/" + filenameBase);
+                }
+            } catch (err) {
+                console.log(err);
             }
-            this.breakout();
-        });
-        console.log("\nInitial Midjourney image generation completed");
-        if (saveQuadFiles) await this.makeFileFromIMGobj(img);
-
-        let imgToUpscale = img;
-        let filenameBase = folder + "/";
-
-        // check if the folder exists, if not, create it
-        try {
-            if (!fs.existsSync("output/" + filenameBase)) {
-                fs.mkdirSync("output/" + filenameBase);
-            }
-        } catch (err) {
-            console.log(err);
-        }
-
-        let fileCount = 1;
-
-        while (this.runningProcess) {
-            this.breakout();
-            if (!this.runningProcess) break;
-            // loop through 4 times and upscale each image
-            for (let i = 1; i <= 4; i++) {
-                // pad the file count with 0s to make it 4 digits long (0001, 0002, etc)
-                let fileCountString = fileCount.toString().padStart(4, "0");
-                let filename = filenameBase + fileCountString;
-                fileCount++;
-                // upscale the image and save it
-                let temp = await this.mj.upscaleImage(imgToUpscale, i, img.prompt, this.breakout);
+            // set the file count to 1, used for naming the files when autoNameFiles is true
+            let fileCount = 1;
+            // loop while the running process flag is true
+            while (this.runningProcess) {
+                // if the kill process was called, exit the loop
+                this.breakout();
                 if (!this.runningProcess) break;
-                await this.makeFileFromIMGobj(temp, autoNameFiles ? filename : "", aiUpscale);
+                // loop through 4 times and upscale each image
+                for (let i = 1; i <= 4; i++) {
+                    // pad the file count with 0s to make it 4 digits long (0001, 0002, etc)
+                    let fileCountString = fileCount.toString().padStart(4, "0");
+                    let filename = filenameBase + fileCountString;
+                    fileCount++;
+                    // upscale the image and save it
+                    let temp = await this.mj.upscaleImage(imgToUpscale, i, img.prompt, this.breakout);
+                    if (!this.runningProcess) resolve();
+                    await this.makeFileFromIMGobj(temp, autoNameFiles ? filename : "", aiUpscale);
+                }
+                // reroll the image and save it
+                imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt, this.breakout);
+                if (!this.runningProcess) resolve();
+                if (saveQuadFiles) {
+                    let fileCountString = fileCount.toString().padStart(4, "0");
+                    fileCount++;
+                    // create the filename with the base and the padded file count
+                    filename = filenameBase + fileCountString;
+                    await this.makeFileFromIMGobj(imgToUpscale, autoNameFiles ? filename : "");
+                }
             }
-            // reroll the image and save it
-            imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt, this.breakout);
-            if (!this.runningProcess) break;
-            if (saveQuadFiles) {
-                let fileCountString = fileCount.toString().padStart(4, "0");
-                fileCount++;
-                // create the filename with the base and the padded file count
-                filename = filenameBase + fileCountString;
-                await this.makeFileFromIMGobj(imgToUpscale, autoNameFiles ? filename : "");
-            }
-        }
+        });
     }
 
+    // the main function runner
+    // MJprompt: the prompt to send to Midjourney
+    // maxGenerations: the max number of times to run the outer loop
+    // maxUpscales: the max number of times to run the upscale loop
+    // maxVariations: the max number of times to run the variation loop
+    // maxZooms: the max number of times to run the zoom loop
+    // printInfo: whether to print the Midjourney info to the console
+    // aiUpscale: whether to run an additional AI upscale on the images
     async main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false) {
         maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
-        //const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
-        //const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
+        // get the Midjourney instance
         const mj = this.mj;
+        // set the max generations count to 0
         let maxGenerationsCount = 0;
+        // print the Midjourney info to the console if printInfo is true
         if (printInfo) {
             let info = await mj.getInfo();
             console.log("Midjourney info:\n\n", info.embeds[0].description);
         }
-
+        // loop while the max generations count is less than the max generations
         while (maxGenerationsCount < maxGenerations) {
+            // send the prompt to Midjourney and wait for the response. img is an object holding the response
             let img = await mj.generateImage(MJprompt, (obj, progress) => {
                 //process.stdout.write(progress + "%  ");
-                this.logger({ runner: progress + "%  " });
+                this.logger({ mj: progress + "%  " });
             });
-            //console.log("\nMidjourney image generation completed:", img.url);
-            //console.log("\nInitial Midjourney image generation completed\n");
-            this.logger({ runner: "Initial Midjourney image generation completed" });
+            this.logger({ mj: "Initial Midjourney image generation completed" });
 
-            // Do something with the image
+            // save the quad files
             this.makeFileFromIMGobj(img);
-
+            // set up the queues
             let upscaleQueue = [];
             upscaleQueue.push(img);
             let variationQueue = [];
             variationQueue.push(img);
             let zoomQueue = [];
+            // init the max counts
             let maxUpscalesCount = 0;
             let maxVariationsCount = 0;
             let maxZoomsCount = 0;
@@ -200,35 +264,39 @@ class MJ_Handler {
 
             // loop as long as there are images in the queue and we haven't reached the max number of generations
             while (loop[0] || loop[1] || loop[2]) {
-
-                //console.log("Processing request queues....");
-                this.logger({ runner: "Processing request queues...." });
-                //console.log("upscaleQueue.length:", upscaleQueue.length);
-                //console.log("variationQueue.length:", variationQueue.length);
-                //console.log("zoomQueue.length:", zoomQueue.length);
+                this.logger({ mj: "Processing request queues...." });
+                // loop through the queues and run the appropriate function
                 while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
+                    // get the image from the queue
                     let img = upscaleQueue.shift();
+                    // upscale the first image
                     let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
+                    // save the upscaled image, add it to the zoom queue, and AI upscale it if aiUpscale is true
                     this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
+                    // upscale the second image and save it
                     upscaledImg = await mj.upscaleImage(img, 2, img.prompt);
                     this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
+                    // upscale the third image and save it
                     upscaledImg = await mj.upscaleImage(img, 3, img.prompt);
                     this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
+                    // upscale the fourth image and save it
                     upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
                     this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
+                    // increment the max upscales count
                     maxUpscalesCount++;
                 }
-                //console.log("upscaleQueue.length:", upscaleQueue.length);
-                //console.log("variationQueue.length:", variationQueue.length);
-                //console.log("zoomQueue.length:", zoomQueue.length);
+                // loop through the queues and run the appropriate function
                 while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
+                    // get the image from the queue
                     let img = variationQueue.shift();
+                    // run the variation function on all 4 images and save the images
                     let variationImg = await mj.variation(img, 1, img.prompt);
                     this.makeFileFromIMGobj(variationImg);
+                    // add the images to the upscale and variation queues
                     upscaleQueue.push(variationImg);
                     variationQueue.push(variationImg);
                     variationImg = await mj.variation(img, 2, img.prompt);
@@ -245,30 +313,41 @@ class MJ_Handler {
                     variationQueue.push(variationImg);
                     maxVariationsCount++;
                 }
-                //console.log("upscaleQueue.length:", upscaleQueue.length);
-                //console.log("variationQueue.length:", variationQueue.length);
-                //console.log("zoomQueue.length:", zoomQueue.length);
+                // loop through the queues and run the appropriate function
                 while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
+                    // get the image from the queue
                     let img = zoomQueue.shift();
+                    // run the zoom out function on the image and save it
                     let zoomedImg = await mj.zoomOut(img, img.prompt);
+                    // save the image but don't AI upscale it
                     this.makeFileFromIMGobj(zoomedImg);
+                    // add the image to the upscale queue and the zoom queue
                     variationQueue.push(zoomedImg);
                     upscaleQueue.push(zoomedImg);
+                    // increment the max zooms count
                     maxZoomsCount++;
                 }
+                // check if we should continue looping
                 loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
                 loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
                 loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
             }
+            // increment the max generations count
             maxGenerationsCount++;
         }
     }
 
+    // save an image from an IMG object
+    // img: the IMG object
+    // filename: the filename to save the image as
+    // upscaleImg: whether to run an additional AI upscale on the image
     async makeFileFromIMGobj(img, filename = "", upscaleImg = false) {
+        // check to make sure output folder exists, if not, create it
         try {
             if (!fs.existsSync("output/")) {
                 fs.mkdirSync("output/");
             }
+            // check to make sure upscale folder exists, if not, create it
             if (upscaleImg) {
                 if (!fs.existsSync(upscaleDest)) {
                     fs.mkdirSync(upscaleDest);
@@ -277,33 +356,37 @@ class MJ_Handler {
         } catch (err) {
             console.log(err);
         }
+        // get image frome the url and store it in response as an arraybuffer
+        const response = await axios.get(img.url, { responseType: 'arraybuffer' });
+
+        // if the filename is empty, try to parse it from the url
         if (filename == "") {
-            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
+            // get the UUID from the url
             const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
             const regex = new RegExp(regexString);
             const matches = regex.exec(img.url);
+            // if the UUID is not null, use it as the filename
             try {
                 filename = matches[0];
             } catch (e) {
-                console.log("Error: Could not parse filename from url. Using default filename.");
+                // if we couln't parse the filename, we'll use another method that ends up incorporating the Discord username
                 filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
-                console.log("filename:", filename);
             }
-
-            await sharp(response.data).toFile("output/" + filename + '.png');
-            if (upscaleImg) {
-                upscaler.upscale("output/" + filename + '.png').then(() => {
-                    this.logger({ runner: "Upscaled image saved to " + upscaleDest + filename + '.jpg' });
-                });
-            }
-        } else {
-            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
-            await sharp(response.data).toFile("output/" + filename + '.png');
-            if (upscaleImg) {
-                upscaler.upscale("output/" + filename + '.png').then(() => {
-                    this.logger({ runner: "Upscaled image saved to " + upscaleDest + filename + '.jpg' });
-                });
-            }
+        }
+        // send the data to sharp and save it as a png
+        await sharp(response.data).toFile("output/" + filename + '.png');
+        this.logger({ mj: "Image saved to " + "output/" + filename + '.png' });
+        await waitSeconds(1);
+        // if aiUpscale is true, run the AI upscale on the image
+        if (upscaleImg) {
+            // filepath of the output image
+            let file = "output/" + filename + '.png';
+            // run the AI upscale on the image sending it the filepath and the destination folder
+            // the destination folder is derived from the filepath by removing the filename and adding "upscaled/"
+            upscaler.upscale(file, file.substring(0,file.lastIndexOf("/")) + "/upscaled/").then(async () => { // async so that we can await the waitSeconds function making sure we see the log message
+                this.logger({ mj: "Upscaled image saved to " + upscaleDest + filename + '.jpg' });
+                await waitSeconds(1);
+            });
         }
     }
 }
@@ -314,11 +397,13 @@ try {
     userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 } catch (e) {
     console.log("Error: Could not read user.json. Please make sure it exists and is valid JSON.");
-    process.exit();
+    process.exit(1);
 }
 
+// create an instance of express for the login process
 const app = express();
 
+// doLogin handles the login process when a token isn't provided in user.json
 const doLogin = async () => {
     console.log("Log in to Discord using browser:");
     console.log("Browser extension \"Run Javascript\" is required to get the token from the browser.");
@@ -326,19 +411,23 @@ const doLogin = async () => {
     console.log("Paste the code below into the extension and enable it.");
     console.log("token = localStorage.getItem(\"token\")\;\ntoken = token.replaceAll(\"\\\"\", \"\")\;\ntheUrl = \"http://localhost:9999/api/token=\" + token\;\nwindow.open(theUrl,'_blank');\n");
 
+    // set up a timeout for the login process
     let notLoggedIn = true;
     let loginTimeout = setTimeout(() => {
         console.log("Login timed out. Please try again.");
         process.exit();
     }, 5 * 60 * 1000);
 
-    let newToken = "";
 
+    let newToken = "";
+    // set up the express server
     app.get("/login", (request, response) => {
+        // redirect to the discord oauth2 page
         const redirect_url = `https://discord.com/oauth2/authorize?response_type=code&client_id=${userConfig.CLIENT_ID}&scope=identify&state=123456&redirect_uri=${userConfig.REDIRECT_URI}&prompt=consent`
         response.redirect(redirect_url);
     })
 
+    // handle the callback from discord oauth2
     app.get("/api/callback", async (request, response) => {
         const code = request.query["code"]
         const resp = await axios.post('https://discord.com/api/oauth2/token',
@@ -358,10 +447,12 @@ const doLogin = async () => {
         response.send("You may close this window now.<script>window.close();</script>");
     })
 
+    // start the express server
     app.listen(9999, () => {
         console.log("Browse to http://localhost:9999/login");
     })
 
+    // handle the token GET request from the browser extension
     app.get("/api/token=*", async (request, response) => {
         console.log("token request");
         console.log(request.url);
@@ -372,12 +463,15 @@ const doLogin = async () => {
         loginTimeout.unref();
     })
 
+    // wait for the token to be received
     while (notLoggedIn) {
         await waitSeconds(1);
     }
+    // return the token
     return newToken;
 }
 
+// set up discordie
 var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
 var DiscordieReady = false;
@@ -394,21 +488,26 @@ try {
     process.exit();
 }
 
+// setup() runs when the program starts and inits most everything
 async function setup() {
+    // if we don't have a token, do the login process
     if (userConfig.token == "" || userConfig.token == null) {
         userConfig.token = await doLogin();
         fs.writeFileSync('user.json', JSON.stringify(userConfig, null, 2));
     }
 
+    // connect to discord using the token that was either provided or received from the login process
     DiscordClient.connect({
         token: userConfig.token
     });
 
+    // Event handler for when Discordie is ready
     DiscordClient.Dispatcher.on(DiscordEvents.GATEWAY_READY, e => {
         console.log("Connected as: " + DiscordClient.User.username);
         DiscordieReady = true;
     });
 
+    // Event handler for when a message is received
     DiscordClient.Dispatcher.on(DiscordEvents.MESSAGE_CREATE, e => {
         if (e.message.content == "ping")
             e.message.channel.sendMessage("pong");
@@ -419,6 +518,7 @@ async function setup() {
     while (!DiscordieReady) {
         await waitSeconds(1);
     }
+
     // get list of guilds
     let guilds = await DiscordClient.Guilds.toArray();
 
@@ -458,15 +558,18 @@ async function setup() {
     channel_id_from_discordie = channel.id;
     console.log("Shutting down Discordie client...");
     await DiscordClient.disconnect();
+    // start the Midjourney instance
     midjourney = new MJ_Handler({
         token: userConfig.token,
         guild_id: guild_id_from_discordie,
         channel_id: channel_id_from_discordie
     });
 
+    // register the MJ logger callback
     midjourney.registerMJLoggerCB(MJlogger);
 }
 
+// Lgging function dsigned to print to the console in a specific location so that it doesn't interfere with the prompts
 async function MJlogger(msg) {
     if (MJloggerEnabled) {
         if (msg.mj != null) {
@@ -478,6 +581,7 @@ async function MJlogger(msg) {
     }
 }
 
+// print a message to the console in a location relative to the current cursor position
 async function printToLineRelative(line, text) {
     process.stdout.cursorTo(0);
     process.stdout.moveCursor(0, line);
@@ -1139,7 +1243,7 @@ async function run() {
                 aiUpscale = basicAnswers.AIUPSCALE;
                 runAsk = true;
                 break;
-            case "6":
+            case "6": // start thematic generation from questions
                 clearScreenBelowIntro();
                 console.log("Start thematic generation from questions");
                 // ask theme questions
@@ -1193,7 +1297,7 @@ async function run() {
                 aiUpscale = themeQuestions.AIUPSCALE;
                 runAsk = true;
                 break;
-            case "7":
+            case "7": // start prompt generation from saved prompt
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from saved prompt");
                 // print the prompts
@@ -1216,7 +1320,7 @@ async function run() {
                 aiUpscale = basicAnswers.AIUPSCALE;
                 runAsk = true;
                 break;
-            case "8":
+            case "8": // start prompt generation from questions
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from questions");
                 // ask prompt questions
@@ -1230,12 +1334,12 @@ async function run() {
                 aiUpscale = promptQuestions.AIUPSCALE;
                 runAsk = true;
                 break;
-            case "9":
+            case "9": // start prompt generation from last questions
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from last questions");
                 runAsk = true;
                 break;
-            case "10":
+            case "10": // start infinite zoom
                 clearScreenBelowIntro();
                 console.log("Start infinite zoom");
                 let infiniteZoomQuestions = await askInfiniteQuestions();
@@ -1288,8 +1392,11 @@ async function run() {
                 break;
         }
         MJloggerEnabled = true;
+        let cancelTheRunner = false;
+        let cancellation = null;
         if (runningProcess) {
             MJlogger({ runner: "running" });
+            cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheRunner = true; });
         }
 
         let loopCount = 1;
@@ -1298,8 +1405,13 @@ async function run() {
             let dots = ".".repeat(loopCount);
             MJlogger({ runner: dots });
             loopCount++;
-            let end = await waitSeconds(1);
+            await waitSeconds(1);
             if (loopCount > 5) loopCount = 1;
+            if(cancelTheRunner){
+                cancellation.cancel();
+                runningProcess = false;
+                midjourney.killProcess();
+            }
         }
 
         if (runAsk) {
