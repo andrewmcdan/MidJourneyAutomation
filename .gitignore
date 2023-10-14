@@ -6,3 +6,7 @@ user.json
 *vscode
 *commands
 *.cloudf
+*zipped
+*unzipped
+*output*
+*models*

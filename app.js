@@ -17,6 +17,21 @@ import figlet from 'figlet';
 import stringifyObject from 'stringify-object';
 import Discordie from "discordie";
 import express from "express";
+import upscale from 'ai-upscale-module';
+
+const questionMessages = {
+    SENDTOCHATGPT: "Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.",
+    SAVEQUADS: "Do you want to save the quad files?",
+    CUSTOMFILENAME: "Use custom folder and sequential naming?",
+    PROMPT: "What is your prompt?",
+    GENERATIONS: "How many runs per prompt do you want to run?",
+    UPSCALE: "How many generations of upscaling do you want to allow? (Initial run + # of variation runs + # of zoom runs)",
+    VARIATION: "How many generations of variations do you want to allow? (Started from the initial run)",
+    ZOOM: "How many generations of zoom out do you want to allow? (Cumulative of all runs)",
+    FOLDER: "What is your folder name?",
+    READY: "Ready to run?",
+    THEME: 'What are your theme keywords? (comma separated)'
+};
 
 
 
@@ -181,9 +196,7 @@ class MJ_Handler {
 
             // loop as long as there are images in the queue and we haven't reached the max number of generations
             while (loop[0] || loop[1] || loop[2]) {
-                loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
-                loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
-                loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
+                
                 //console.log("Processing request queues....");
                 this.logger({ runner: "Processing request queues...." });
                 //console.log("upscaleQueue.length:", upscaleQueue.length);
@@ -239,6 +252,9 @@ class MJ_Handler {
                     upscaleQueue.push(zoomedImg);
                     maxZoomsCount++;
                 }
+                loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
+                loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
+                loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
             }
             maxGenerationsCount++;
         }
@@ -274,9 +290,9 @@ class MJ_Handler {
 }
 
 // get user config from file
-let userconfig;
+let userConfig;
 try{
-    userconfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
+    userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
 }catch(e){
     console.log("Error: Could not read user.json. Please make sure it exists and is valid JSON.");
     process.exit();
@@ -661,10 +677,10 @@ const askMenuOption = async (validate = null) => {
 
 const askInfiniteQuestions = async () => {
     let res = {};
-    res.SENDTOCHATGPT = await confirm({message: 'Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.'});
-    res.SAVEQUADS = await confirm({message: 'Do you want to save the quad files?'});
-    res.CUSTOMFILENAME = await confirm({message: 'Use custom folder and sequential naming?'});
-    res.PROMPT = await input({message: 'What is your prompt?'});
+    res.SENDTOCHATGPT = await confirm({message: questionMessages.SENDTOCHATGPT});
+    res.SAVEQUADS = await confirm({message: questionMessages.SAVEQUADS});
+    res.CUSTOMFILENAME = await confirm({message: questionMessages.CUSTOMFILENAME});
+    res.PROMPT = await input({message: questionMessages.PROMPT});
     return res;
 }
 
@@ -676,7 +692,7 @@ const pressEnterToReturnToMenu = async () => {
 
 const customFolderQuestion = async () => {
     let res = {};
-    res.FOLDER = await input({message: 'What is your folder name?'});
+    res.FOLDER = await input({message: questionMessages.FOLDER});
     return res;
 }
 
@@ -688,11 +704,11 @@ const readyToRun = async () => {
 
 const askPromptQuestions = async () => {
     let res = {};
-    res.PROMPT = await input({message: 'What is your prompt?'});
-    res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
-    res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
-    res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
-    res.ZOOM = await input({message: 'How many generations of zoom out do you want to allow?'});
+    res.PROMPT = await input({message: questionMessages.PROMPT});
+    res.GENERATIONS = await input({message: questionMessages.GENERATIONS});
+    res.UPSCALE = await input({message: questionMessages.UPSCALE});
+    res.VARIATION = await input({message: questionMessages.VARIATION});
+    res.ZOOM = await input({message: questionMessages.ZOOM});
     return res;
 }
 
@@ -704,14 +720,14 @@ const askPromptQuestionShort = async () => {
 
 const askThemeQuestionsShort = async () => {
     let res = {};
-    res.THEME = await input({message: 'What are your theme keywords? (comma separated)'});
+    res.THEME = await input({message: questionMessages.THEME});
     res.STYLE = await input({message: 'What is your style?'});
     return res;
 }
 
 const askThemeQuestions = async () => {
     let res = {};
-    res.THEME = await input({message: 'What are your theme keywords? (comma separated)'});
+    res.THEME = await input({message: questionMessages.THEME});
     res.STYLE = await input({message: 'What is your style?'});
     let chatGPTCount = 100000;
     while(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
@@ -719,10 +735,10 @@ const askThemeQuestions = async () => {
         chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
         if(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
     }
-    res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
-    res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
-    res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
-    res.ZOOM = await input({message: 'How many generations of zoom out do you want to allow?'});
+    res.GENERATIONS = await input({message: questionMessages.GENERATIONS});
+    res.UPSCALE = await input({message: questionMessages.UPSCALE});
+    res.VARIATION = await input({message: questionMessages.VARIATION});
+    res.ZOOM = await input({message: questionMessages.ZOOM});
     return res;
 }
 
@@ -734,10 +750,10 @@ const askImageGenQuestions = async () => {
         chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
         if(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
     }
-    res.GENERATIONS = await input({message: 'How many runs per prompt do you want to run?'});
-    res.UPSCALE = await input({message: 'How many generations of upscaling do you want to allow?'});
-    res.VARIATION = await input({message: 'How many generations of variations do you want to allow?'});
-    res.ZOOM = await input({message: 'How many generations of zoom out do you want to allow?'});
+    res.GENERATIONS = await input({message: questionMessages.GENERATIONS});
+    res.UPSCALE = await input({message: questionMessages.UPSCALE});
+    res.VARIATION = await input({message: questionMessages.VARIATION});
+    res.ZOOM = await input({message: questionMessages.ZOOM});
     return res;
 }
 
@@ -1073,6 +1089,7 @@ async function run() {
                     await waitSeconds(2);
                     break;
                 }
+                console.log("");
                 //log the prompt
                 res.prompts.forEach((prompt, i) => {
                     if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
@@ -1126,6 +1143,7 @@ async function run() {
                     break;
                 }
                 //log the prompt
+                console.log("");
                 res.prompts.forEach((prompt, i) => {
                     if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
                     else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
@@ -1305,4 +1323,11 @@ await setup();
 await run();
 await midjourney.close();
 console.log("Done. Goodbye!");
+let scaledSuccess = await upscale("output/A_bustling_Halloween_market_in_a_steampunk_city_surround_14775f96-f4fa-40e5-b388-e911beda2426.png");
+if(scaledSuccess){
+    console.log("Scaled successfully!");
+}
+else{
+    console.log("Error scaling!");
+}
 process.exit(0);
