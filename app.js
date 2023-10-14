@@ -1,7 +1,7 @@
 // @TODO: 
 // - add question to each mode to ask if you want to save the quad files
 // - add question to each mode to ask if you want to use a custom folder and sequential naming
-// - experiment with automatically upscaling with upscayl (https://github.com/upscayl/upscayl)
+// - add feature to upload an image to Midjourney and run it with a keyword. Perhaps have a list of keywords to choose from, or run the whole list.
 
 import { MidjourneyDiscordBridge } from "midjourney-discord-bridge";
 
@@ -17,7 +17,7 @@ import figlet from 'figlet';
 import stringifyObject from 'stringify-object';
 import Discordie from "discordie";
 import express from "express";
-import upscale from 'ai-upscale-module';
+import Upscaler from 'ai-upscale-module';
 
 const questionMessages = {
     SENDTOCHATGPT: "Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.",
@@ -30,10 +30,12 @@ const questionMessages = {
     ZOOM: "How many generations of zoom out do you want to allow? (Cumulative of all runs)",
     FOLDER: "What is your folder name?",
     READY: "Ready to run?",
-    THEME: 'What are your theme keywords? (comma separated)'
+    THEME: 'What are your theme keywords? (comma separated)',
+    AIUPSCALE: 'Do you want to run additional AI upscale on the images? (This may take a long time)'
 };
-
-
+let MJloggerEnabled = false;
+let upscaler = new Upscaler({ defaultOutputPath: "output/upscaled/" });
+const upscaleDest = "output/upscaled/";
 
 class MJ_Handler {
     constructor(config) {
@@ -65,12 +67,13 @@ class MJ_Handler {
         }
     }
 
-    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "") {
+    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false) {
         this.runningProcess = true;
 
         let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
             if (progress != null) {
-                process.stdout.write(progress + "%  ");
+                // process.stdout.write(progress + "%  ");
+                this.logger({ runner: progress + "%  " });
             }
             this.breakout();
         });
@@ -99,7 +102,7 @@ class MJ_Handler {
             let random1to4 = Math.floor(Math.random() * 4) + 1;
             imgToZoom = await this.mj.upscaleImage(imgToScale, random1to4, img.prompt, this.breakout);
             if (!this.runningProcess) break;
-            await this.makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "");
+            await this.makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "", aiUpscale);
             imgToScale = await this.mj.zoomOut(imgToZoom, img.prompt, this.breakout);
             if (!this.runningProcess) break;
             if (saveQuadFiles) this.makeFileFromIMGobj(imgToScale, autoNameFiles ? filename : "");
@@ -107,13 +110,14 @@ class MJ_Handler {
         }
     }
 
-    async infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null) {
+    async infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false) {
         this.runningProcess = true;
         //console.log("Starting infinite prompt variation upscales... (press q to quit)");
         //const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
         let img = await this.mj.generateImage(MJprompt, (obj, progress) => {
             if (progress != null) {
-                process.stdout.write(progress + "%  ");
+                // process.stdout.write(progress + "%  ");
+                this.logger({ runner: progress + "%  " });
             }
             this.breakout();
         });
@@ -146,7 +150,7 @@ class MJ_Handler {
                 // upscale the image and save it
                 let temp = await this.mj.upscaleImage(imgToUpscale, i, img.prompt, this.breakout);
                 if (!this.runningProcess) break;
-                await this.makeFileFromIMGobj(temp, autoNameFiles ? filename : "");
+                await this.makeFileFromIMGobj(temp, autoNameFiles ? filename : "", aiUpscale);
             }
             // reroll the image and save it
             imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt, this.breakout);
@@ -161,7 +165,7 @@ class MJ_Handler {
         }
     }
 
-    async main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false) {
+    async main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false) {
         maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
         //const mj = new MidjourneyDiscordBridge(userConfig.token, guild_id_from_discordie, channel_id_from_discordie);
         //const mj = new MidjourneyDiscordBridge(userConfig.token, userConfig.guild_id, userConfig.channel_id);
@@ -196,7 +200,7 @@ class MJ_Handler {
 
             // loop as long as there are images in the queue and we haven't reached the max number of generations
             while (loop[0] || loop[1] || loop[2]) {
-                
+
                 //console.log("Processing request queues....");
                 this.logger({ runner: "Processing request queues...." });
                 //console.log("upscaleQueue.length:", upscaleQueue.length);
@@ -205,16 +209,16 @@ class MJ_Handler {
                 while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
                     let img = upscaleQueue.shift();
                     let upscaledImg = await mj.upscaleImage(img, 1, img.prompt);
-                    this.makeFileFromIMGobj(upscaledImg);
+                    this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
                     upscaledImg = await mj.upscaleImage(img, 2, img.prompt);
-                    this.makeFileFromIMGobj(upscaledImg);
+                    this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
                     upscaledImg = await mj.upscaleImage(img, 3, img.prompt);
-                    this.makeFileFromIMGobj(upscaledImg);
+                    this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
                     upscaledImg = await mj.upscaleImage(img, 4, img.prompt);
-                    this.makeFileFromIMGobj(upscaledImg);
+                    this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
                     zoomQueue.push(upscaledImg);
                     maxUpscalesCount++;
                 }
@@ -260,10 +264,15 @@ class MJ_Handler {
         }
     }
 
-    async makeFileFromIMGobj(img, filename = "") {
+    async makeFileFromIMGobj(img, filename = "", upscaleImg = false) {
         try {
             if (!fs.existsSync("output/")) {
                 fs.mkdirSync("output/");
+            }
+            if (upscaleImg) {
+                if (!fs.existsSync(upscaleDest)) {
+                    fs.mkdirSync(upscaleDest);
+                }
             }
         } catch (err) {
             console.log(err);
@@ -282,18 +291,28 @@ class MJ_Handler {
             }
 
             await sharp(response.data).toFile("output/" + filename + '.png');
+            if (upscaleImg) {
+                upscaler.upscale("output/" + filename + '.png').then(() => {
+                    this.logger({ runner: "Upscaled image saved to " + upscaleDest + filename + '.jpg' });
+                });
+            }
         } else {
             const response = await axios.get(img.url, { responseType: 'arraybuffer' });
             await sharp(response.data).toFile("output/" + filename + '.png');
+            if (upscaleImg) {
+                upscaler.upscale("output/" + filename + '.png').then(() => {
+                    this.logger({ runner: "Upscaled image saved to " + upscaleDest + filename + '.jpg' });
+                });
+            }
         }
     }
 }
 
 // get user config from file
 let userConfig;
-try{
+try {
     userConfig = JSON.parse(fs.readFileSync('user.json', 'utf8'));
-}catch(e){
+} catch (e) {
     console.log("Error: Could not read user.json. Please make sure it exists and is valid JSON.");
     process.exit();
 }
@@ -368,9 +387,9 @@ var channel_id_from_discordie = "";
 
 // get data from prompts file
 let prompts;
-try{
+try {
     prompts = JSON.parse(fs.readFileSync('prompts.json', 'utf8'));
-}catch(e){
+} catch (e) {
     console.log("Error: Could not read prompts.json. Please make sure it exists and is valid JSON.");
     process.exit();
 }
@@ -378,7 +397,7 @@ try{
 async function setup() {
     if (userConfig.token == "" || userConfig.token == null) {
         userConfig.token = await doLogin();
-        fs.writeFileSync('user.json', JSON.stringify(userConfig,null,2));
+        fs.writeFileSync('user.json', JSON.stringify(userConfig, null, 2));
     }
 
     DiscordClient.connect({
@@ -409,7 +428,7 @@ async function setup() {
     });
 
     // ask for the guild
-    const guildAnswer = await select({message: 'What is your server name?', choices: guildsObjArray});
+    const guildAnswer = await select({ message: 'What is your server name?', choices: guildsObjArray });
 
     // find the guild object from the answer name
     let guild;
@@ -426,7 +445,7 @@ async function setup() {
     });
 
     // ask for the channel
-    const channelAnswer = await select({message: 'Which channel would you like to use?', choices: channelsObjArray});
+    const channelAnswer = await select({ message: 'Which channel would you like to use?', choices: channelsObjArray });
 
     // find the channel object from the answer name
     let channel;
@@ -449,11 +468,13 @@ async function setup() {
 }
 
 async function MJlogger(msg) {
-    if (msg.mj != null) {
-        printToLineRelative(-1, "Midjourney log: " + msg.mj);
-    }
-    if (msg.runner != null) {
-        printToLineRelative(-2, "Runner log: " + msg.runner);
+    if (MJloggerEnabled) {
+        if (msg.mj != null) {
+            printToLineRelative(2, "Midjourney log: " + msg.mj);
+        }
+        if (msg.runner != null) {
+            printToLineRelative(1, "Runner log: " + msg.runner);
+        }
     }
 }
 
@@ -480,7 +501,7 @@ async function sendChatGPTPrompt(prompt) {
     let cancelTheGPT = false;
     // cancellation is a promise that will be resolved when the user presses enter to cancel the GPT.
     // This is used to cancel the prompt is the user never presses enter.
-    let cancellation = input({message: 'Press enter to cancel and return to menu.'}).then(() => {cancelTheGPT = true;});
+    let cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheGPT = true; });
     // res is the response from chatgpt
     let res = null;
     // count is used to print a dot every 2 seconds to show that the GPT is still running
@@ -491,28 +512,28 @@ async function sendChatGPTPrompt(prompt) {
             onProgress: (partialResponse) => {
                 // every other time we get a partial response, print a dot
                 count++;
-                if(!cancelTheGPT) { // but only if the user hasn't pressed enter to cancel
+                if (!cancelTheGPT) { // but only if the user hasn't pressed enter to cancel
                     if (count % 2 == 0) {
                         process.stdout.write(".");
                     }
                 }
             }
         }).then((response) => {
-            if(!cancelTheGPT) res = response; // set res to the response if the user hasn't pressed enter to cancel
+            if (!cancelTheGPT) res = response; // set res to the response if the user hasn't pressed enter to cancel
         });
     // wait for the response or for the user to press enter to cancel
-    while(res == null && !cancelTheGPT) {
+    while (res == null && !cancelTheGPT) {
         await waitSeconds(1);
     }
-    if(cancellation.cancel != null) {
+    if (cancellation.cancel != null) {
         // cancel the cancellation promise
         cancellation.cancel();
     }
-    if(cancelTheGPT) {
+    if (cancelTheGPT) {
         console.log("Prompt cancelled");
         await waitSeconds(1);
         return null;
-    } 
+    }
     return res.text;
 }
 
@@ -538,14 +559,14 @@ async function waitSeconds(count, cancelable = false) {
     return await new Promise((resolve) => {
         // if the wait is cancelable, set the confirmation promise to the promise returned by the confirm function
         if (cancelable) {
-            confirmation = confirm({message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.'}).then(() => {
+            confirmation = confirm({ message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.' }).then(() => {
                 // if the user presses enter, resolve the promise with true
                 resolve(true);
             });
         }
         setTimeout(() => {
             // if the user hasn't pressed enter to cancel, cancel the confirmation promise and resolve the wait promise with false
-            if(confirmation != null) confirmation.cancel();
+            if (confirmation != null) confirmation.cancel();
             resolve(false);
         }, count * 1000);
     });
@@ -662,12 +683,12 @@ const printMainMenu = () => {
 // return:  the answer to the question as a string
 const askMenuOption = async (validate = null) => {
     // if validate is null, just ask for input
-    if(validate == null) return await input({message: 'What is your choice?'});
+    if (validate == null) return await input({ message: 'What is your choice?' });
     else { // otherwise, ask for input and validate it
         let valid = false;
         let answer = "";
         while (!valid) { // keep asking for input until it is valid
-            answer = await input({message: 'What is your choice?'});
+            answer = await input({ message: 'What is your choice?' });
             // if the answer is valid, set valid to true and return the answer
             valid = validate(answer); // validate is a function that returns true if the answer is valid
         }
@@ -677,91 +698,95 @@ const askMenuOption = async (validate = null) => {
 
 const askInfiniteQuestions = async () => {
     let res = {};
-    res.SENDTOCHATGPT = await confirm({message: questionMessages.SENDTOCHATGPT});
-    res.SAVEQUADS = await confirm({message: questionMessages.SAVEQUADS});
-    res.CUSTOMFILENAME = await confirm({message: questionMessages.CUSTOMFILENAME});
-    res.PROMPT = await input({message: questionMessages.PROMPT});
+    res.SENDTOCHATGPT = await confirm({ message: questionMessages.SENDTOCHATGPT });
+    res.SAVEQUADS = await confirm({ message: questionMessages.SAVEQUADS });
+    res.CUSTOMFILENAME = await confirm({ message: questionMessages.CUSTOMFILENAME });
+    res.PROMPT = await input({ message: questionMessages.PROMPT });
+    res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
     return res;
 }
 
 const pressEnterToReturnToMenu = async () => {
     let res = {};
-    res.ENTER = await input({message: 'Press enter to return to the main menu.'});
+    res.ENTER = await input({ message: 'Press enter to return to the main menu.' });
     return res;
 }
 
 const customFolderQuestion = async () => {
     let res = {};
-    res.FOLDER = await input({message: questionMessages.FOLDER});
+    res.FOLDER = await input({ message: questionMessages.FOLDER });
     return res;
 }
 
 const readyToRun = async () => {
     let res = {};
-    res.READY = await confirm({message: 'Ready to run?'});
+    res.READY = await confirm({ message: 'Ready to run?' });
     return res;
 }
 
 const askPromptQuestions = async () => {
     let res = {};
-    res.PROMPT = await input({message: questionMessages.PROMPT});
-    res.GENERATIONS = await input({message: questionMessages.GENERATIONS});
-    res.UPSCALE = await input({message: questionMessages.UPSCALE});
-    res.VARIATION = await input({message: questionMessages.VARIATION});
-    res.ZOOM = await input({message: questionMessages.ZOOM});
+    res.PROMPT = await input({ message: questionMessages.PROMPT });
+    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS });
+    res.UPSCALE = await input({ message: questionMessages.UPSCALE });
+    res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
+    res.VARIATION = await input({ message: questionMessages.VARIATION });
+    res.ZOOM = await input({ message: questionMessages.ZOOM });
     return res;
 }
 
 const askPromptQuestionShort = async () => {
     let res = {};
-    res.PROMPT = await input({message: 'What is your prompt?'});
+    res.PROMPT = await input({ message: 'What is your prompt?' });
     return res;
 }
 
 const askThemeQuestionsShort = async () => {
     let res = {};
-    res.THEME = await input({message: questionMessages.THEME});
-    res.STYLE = await input({message: 'What is your style?'});
+    res.THEME = await input({ message: questionMessages.THEME });
+    res.STYLE = await input({ message: 'What is your style?' });
     return res;
 }
 
 const askThemeQuestions = async () => {
     let res = {};
-    res.THEME = await input({message: questionMessages.THEME});
-    res.STYLE = await input({message: 'What is your style?'});
+    res.THEME = await input({ message: questionMessages.THEME });
+    res.STYLE = await input({ message: 'What is your style?' });
     let chatGPTCount = 100000;
-    while(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
-        res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+    while (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
+        res.CHATGPTGENERATIONS = await input({ message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')' });
         chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
-        if(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
+        if (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
     }
-    res.GENERATIONS = await input({message: questionMessages.GENERATIONS});
-    res.UPSCALE = await input({message: questionMessages.UPSCALE});
-    res.VARIATION = await input({message: questionMessages.VARIATION});
-    res.ZOOM = await input({message: questionMessages.ZOOM});
+    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS });
+    res.UPSCALE = await input({ message: questionMessages.UPSCALE });
+    res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
+    res.VARIATION = await input({ message: questionMessages.VARIATION });
+    res.ZOOM = await input({ message: questionMessages.ZOOM });
     return res;
 }
 
 const askImageGenQuestions = async () => {
     let res = {};
     let chatGPTCount = 100000;
-    while(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
-        res.CHATGPTGENERATIONS = await input({message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')'});
+    while (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
+        res.CHATGPTGENERATIONS = await input({ message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')' });
         chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
-        if(chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
+        if (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
     }
-    res.GENERATIONS = await input({message: questionMessages.GENERATIONS});
-    res.UPSCALE = await input({message: questionMessages.UPSCALE});
-    res.VARIATION = await input({message: questionMessages.VARIATION});
-    res.ZOOM = await input({message: questionMessages.ZOOM});
+    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS });
+    res.UPSCALE = await input({ message: questionMessages.UPSCALE });
+    res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
+    res.VARIATION = await input({ message: questionMessages.VARIATION });
+    res.ZOOM = await input({ message: questionMessages.ZOOM });
     return res;
 }
 
 const askOptionQuestions = async () => {
     let res = {};
-    res.NAME = await input({message: 'What is the option name?'});
-    res.VALUE = await input({message: 'What is the option value?'});
-    res.ENABLED = await input({message: 'Is the option enabled? (y/n)'});
+    res.NAME = await input({ message: 'What is the option name?' });
+    res.VALUE = await input({ message: 'What is the option value?' });
+    res.ENABLED = await input({ message: 'Is the option enabled? (y/n)' });
     return res;
 }
 
@@ -805,6 +830,7 @@ async function run() {
     let basicAnswers;
     let theme;
     let res;
+    let aiUpscale = false;
     let promptChoice;
     let addOption;
     let option;
@@ -814,17 +840,18 @@ async function run() {
     let runAsk = false;
 
     while (menuOption != "0") {
+        MJloggerEnabled = false;
         // print menu options
         printMainMenu();
         // ask for the menu option
-        menuOption = await askMenuOption((value)=>{
+        menuOption = await askMenuOption((value) => {
             value = parseInt(value);
-            if(value >= 0 <= 11) return true; 
+            if (value >= 0 <= 11) return true;
             else return false;
         });
         // if option 1, modify prompts
         switch (menuOption) {
-            case "1":
+            case "1":  // show loaded themes, prompts, and options
                 clearScreenBelowIntro();
                 console.log("Show loaded themes, prompts, and options");
                 // print the info from the prompts file
@@ -832,7 +859,7 @@ async function run() {
                 // wait for enter to be pressed
                 await pressEnterToReturnToMenu();
                 break;
-            case "2":
+            case "2":  // modify prompts
                 clearScreenBelowIntro();
                 console.log("Modify prompts");
                 let modifyPromptsMenuOption = "";
@@ -841,9 +868,9 @@ async function run() {
                     // print the modify prompts menu
                     printModifyPromptsMenu();
                     // ask for the menu option
-                    modifyPromptsMenuOption = await askMenuOption((value)=>{
+                    modifyPromptsMenuOption = await askMenuOption((value) => {
                         value = parseInt(value);
-                        if(value >= 0 <= 3) return true; 
+                        if (value >= 0 <= 3) return true;
                         else return false;
                     });
                     switch (modifyPromptsMenuOption) {
@@ -855,28 +882,28 @@ async function run() {
                             if (prompts.prompts == null) prompts.prompts = [];
                             prompts.prompts.push(addPrompt);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "2":
                             console.log("Remove prompt");
                             // ask for the prompt number
-                            let removePrompt = await askMenuOption((value)=>{
+                            let removePrompt = await askMenuOption((value) => {
                                 value = parseInt(value);
-                                if(value >= 0 <= prompts.prompts.length) return true; 
+                                if (value >= 0 <= prompts.prompts.length) return true;
                                 else return false;
                             });
                             // remove the prompt from the prompts object
                             if (prompts.prompts == null) prompts.prompts = [];
                             prompts.prompts.splice(parseInt(removePrompt) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "3":
                             console.log("Modify prompt");
                             // ask for the prompt number
-                            let modifyPrompt = await askMenuOption((value)=>{
+                            let modifyPrompt = await askMenuOption((value) => {
                                 value = parseInt(value);
-                                if(value >= 0 <= prompts.prompts.length) return true; 
+                                if (value >= 0 <= prompts.prompts.length) return true;
                                 else return false;
                             });
                             // ask for the prompt
@@ -885,7 +912,7 @@ async function run() {
                             if (prompts.prompts == null) prompts.prompts = [];
                             prompts.prompts[parseInt(modifyPrompt) - 1] = modifyPromptQuestions.PROMPT;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "0":
                             console.log("Exit");
@@ -896,7 +923,7 @@ async function run() {
                     }
                 }
                 break;
-            case "3":
+            case "3": // modify themes
                 clearScreenBelowIntro();
                 console.log("Modify themes");
                 let modifyThemesMenuOption = { OPTION: "" };
@@ -905,9 +932,9 @@ async function run() {
                     // print the modify themes menu
                     printModifyThemesMenu();
                     // ask for the menu option
-                    modifyThemesMenuOption = await askMenuOption((value)=>{
+                    modifyThemesMenuOption = await askMenuOption((value) => {
                         value = parseInt(value);
-                        if(value >= 0 <= 3) return true; 
+                        if (value >= 0 <= 3) return true;
                         else return false;
                     });
                     switch (modifyThemesMenuOption) {
@@ -926,29 +953,29 @@ async function run() {
                             };
                             prompts.themes.push(theme);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "2":
                             console.log("Remove theme");
                             // ask for the theme number
-                            removeTheme = await askMenuOption((value)=>{
+                            removeTheme = await askMenuOption((value) => {
                                 value = parseInt(value);
-                                if(value >= 0 <= prompts.themes.length) return true; 
+                                if (value >= 0 <= prompts.themes.length) return true;
                                 else return false;
                             });
                             // remove the theme from the prompts object
                             if (prompts.themes == null) prompts.themes = [];
                             prompts.themes.splice(parseInt(removeTheme) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "3":
                             console.log("Modify theme");
                             //console.log("Which theme do you want to modify?");
                             // ask for the theme number
-                            let modifyTheme = await askMenuOption((value)=>{
+                            let modifyTheme = await askMenuOption((value) => {
                                 value = parseInt(value);
-                                if(value >= 0 <= prompts.themes.length) return true; 
+                                if (value >= 0 <= prompts.themes.length) return true;
                                 else return false;
                             });
                             // ask for the theme
@@ -964,7 +991,7 @@ async function run() {
                             };
                             prompts.themes[parseInt(modifyTheme) - 1] = modifyThemeObject;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "0":
                             console.log("Exit");
@@ -975,7 +1002,7 @@ async function run() {
                     }
                 }
                 break;
-            case "4":
+            case "4":  // modify options
                 clearScreenBelowIntro();
                 console.log("Modify options (applies to all generations)");
                 let modifyOptionsMenuOption = "";
@@ -984,9 +1011,9 @@ async function run() {
                     // print the modify options menu
                     printModifyOptionsMenu();
                     // ask for the menu option
-                    modifyOptionsMenuOption = await askMenuOption((value)=>{
+                    modifyOptionsMenuOption = await askMenuOption((value) => {
                         value = parseInt(value);
-                        if(value >= 0 <= 3) return true; 
+                        if (value >= 0 <= 3) return true;
                         else return false;
                     });
                     switch (modifyOptionsMenuOption) {
@@ -1004,28 +1031,28 @@ async function run() {
                             };
                             prompts.options.push(option);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "2":
                             console.log("Remove option");
                             // ask for the option number
-                            let removeOption = await askMenuOption((value)=>{
+                            let removeOption = await askMenuOption((value) => {
                                 value = parseInt(value);
-                                if(value >= 0 <= prompts.options.length) return true; 
+                                if (value >= 0 <= prompts.options.length) return true;
                                 else return false;
                             });
                             // remove the option from the prompts object
                             if (prompts.options == null) prompts.options = [];
                             prompts.options.splice(parseInt(removeOption) - 1, 1);
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "3":
                             console.log("Modify option");
                             // ask for the option number
-                            let modifyOption = await askMenuOption((value)=>{
+                            let modifyOption = await askMenuOption((value) => {
                                 value = parseInt(value);
-                                if(value >= 0 <= prompts.options.length) return true; 
+                                if (value >= 0 <= prompts.options.length) return true;
                                 else return false;
                             });
                             // ask for the option
@@ -1040,7 +1067,7 @@ async function run() {
                             };
                             prompts.options[parseInt(modifyOption) - 1] = modifyOptionObject;
                             // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts,null,2));
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
                             break;
                         case "0":
                             console.log("Exit");
@@ -1051,15 +1078,15 @@ async function run() {
                     }
                 }
                 break;
-            case "5":
+            case "5":  // start thematic generation from saved theme
                 clearScreenBelowIntro();
                 console.log("Start thematic generation from saved theme");
                 // print the themes
                 printPromptsFile("themes");
                 // ask for the theme number
-                themeChoice = await askMenuOption((value)=>{
+                themeChoice = await askMenuOption((value) => {
                     value = parseInt(value);
-                    if(value >= 0 <= prompts.themes.length) return true; 
+                    if (value >= 0 <= prompts.themes.length) return true;
                     else return false;
                 });
                 basicAnswers = await askImageGenQuestions();
@@ -1073,7 +1100,7 @@ async function run() {
                 if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
                 res = await generatePromptFromThemKeywords(theme, basicAnswers.CHATGPTGENERATIONS);
-                if(res == null) break;
+                if (res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
                 if (res.indexOf("{") == -1) {
@@ -1081,10 +1108,10 @@ async function run() {
                     await waitSeconds(2);
                     break;
                 }
-                try{
+                try {
                     res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
                 }
-                catch(e){
+                catch (e) {
                     console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
                     await waitSeconds(2);
                     break;
@@ -1109,6 +1136,7 @@ async function run() {
                 upscaleAnswer = parseInt(basicAnswers.UPSCALE);
                 variationAnswer = parseInt(basicAnswers.VARIATION);
                 zoomAnswer = parseInt(basicAnswers.ZOOM);
+                aiUpscale = basicAnswers.AIUPSCALE;
                 runAsk = true;
                 break;
             case "6":
@@ -1127,17 +1155,17 @@ async function run() {
                 // generate the prompt from the theme
                 if (themeQuestions.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) themeQuestions.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
-                if(res == null) break;
+                if (res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
                 if (res.indexOf("{") == -1) {
                     console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
                     break;
                 }
-                try{
+                try {
                     res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
                 }
-                catch(e){
+                catch (e) {
                     console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
                     await waitSeconds(2);
                     break;
@@ -1162,6 +1190,7 @@ async function run() {
                 upscaleAnswer = parseInt(themeQuestions.UPSCALE);
                 variationAnswer = parseInt(themeQuestions.VARIATION);
                 zoomAnswer = parseInt(themeQuestions.ZOOM);
+                aiUpscale = themeQuestions.AIUPSCALE;
                 runAsk = true;
                 break;
             case "7":
@@ -1170,9 +1199,9 @@ async function run() {
                 // print the prompts
                 printPromptsFile("prompts");
                 // ask for the prompt number
-                let promptChoice2 = await askMenuOption((value)=>{
+                let promptChoice2 = await askMenuOption((value) => {
                     value = parseInt(value);
-                    if(value >= 0 <= prompts.prompts.length) return true; 
+                    if (value >= 0 <= prompts.prompts.length) return true;
                     else return false;
                 });
                 // set the prompt answer
@@ -1184,6 +1213,7 @@ async function run() {
                 upscaleAnswer = parseInt(basicAnswers.UPSCALE);
                 variationAnswer = parseInt(basicAnswers.VARIATION);
                 zoomAnswer = parseInt(basicAnswers.ZOOM);
+                aiUpscale = basicAnswers.AIUPSCALE;
                 runAsk = true;
                 break;
             case "8":
@@ -1197,6 +1227,7 @@ async function run() {
                 upscaleAnswer = parseInt(promptQuestions.UPSCALE);
                 variationAnswer = parseInt(promptQuestions.VARIATION);
                 zoomAnswer = parseInt(promptQuestions.ZOOM);
+                aiUpscale = promptQuestions.AIUPSCALE;
                 runAsk = true;
                 break;
             case "9":
@@ -1218,10 +1249,10 @@ async function run() {
                 if (infiniteZoomQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2, infiniteZoomQuestions.AIUPSCALE);
                     runningProcess = true;
                 } else {
-                    midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2);
+                    midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2, infiniteZoomQuestions.AIUPSCALE);
                     runningProcess = true;
                 }
                 break;
@@ -1239,10 +1270,10 @@ async function run() {
                 if (infinitePromptQuestions.SENDTOCHATGPT) {
                     let res = await sendChatGPTPrompt(infinitePromptQuestions.PROMPT);
                     res = res.replaceAll("\"", "");
-                    midjourney.infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder);
+                    midjourney.infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, null, infinitePromptQuestions.AIUPSCALE);
                     runningProcess = true;
                 } else {
-                    midjourney.infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder);
+                    midjourney.infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, null, infinitePromptQuestions.AIUPSCALE);
                     runningProcess = true;
                 }
                 break;
@@ -1256,7 +1287,7 @@ async function run() {
                 console.log("Invalid option");
                 break;
         }
-
+        MJloggerEnabled = true;
         if (runningProcess) {
             MJlogger({ runner: "running" });
         }
@@ -1296,8 +1327,8 @@ async function run() {
                 if (ready.READY === true) {
                     console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                     // run the main function
-                    await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0);
-                    if(i < promptCount - 1) {
+                    await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale);
+                    if (i < promptCount - 1) {
                         printRunComplete();
                         console.log("Pausing for a bit between runs...");
                         console.log("");
@@ -1323,11 +1354,4 @@ await setup();
 await run();
 await midjourney.close();
 console.log("Done. Goodbye!");
-let scaledSuccess = await upscale("output/A_bustling_Halloween_market_in_a_steampunk_city_surround_14775f96-f4fa-40e5-b388-e911beda2426.png");
-if(scaledSuccess){
-    console.log("Scaled successfully!");
-}
-else{
-    console.log("Error scaling!");
-}
 process.exit(0);
