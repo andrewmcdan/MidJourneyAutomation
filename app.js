@@ -104,9 +104,15 @@ class MJ_Handler {
         return this.runningProcess;
     }
 
-    async writeEXIFdataToPNG(filePath,UUID,parentUUID,prompt,MJ_imgObj) {
+    async writeEXIFdataToPNG(filePath,MJ_imgObj) {
         console.log("Writing EXIF data to " + filePath);
-
+        let data = {};
+        data.document = "Midjourney";
+        data.comment = "Prompt: " + prompt;
+        data.label = UUID;
+        data.make = parentUUID;
+        data.artist = MJ_imgObj.theme;
+        exifTool.setExifData(filePath,false, data).then((res) => {console.log("res: ", res);}).catch((err) => {console.log("err: ", err);});
 
         
         let keywordsString = "";
@@ -124,7 +130,7 @@ class MJ_Handler {
     // autoNameFiles: whether to automatically name using a counter or to use the name from the prompt / url
     // folder: the folder name to save the files to. defaults to output
     // aiUpscale: whether to run an additional AI upscale on the images
-    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false, keywords = []) {
+    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false, MJ_imgObj = {}) {
         return new Promise(async (resolve, reject) => {
             // set the running process flag to true
             this.runningProcess = true;
@@ -147,7 +153,7 @@ class MJ_Handler {
             this.logger({ mj: "Initial Midjourney image generation completed" });
             // if saveQuadFiles is true, save the quad files
             if (saveQuadFiles) this.makeFileFromIMGobj(img).then(async(res) => {
-                await this.writeEXIFdataToPNG(res, img.uuid.value, img.uuid.value, img.prompt, keywords);
+                await this.writeEXIFdataToPNG(res, keywords);
                 });
             // set the image to zoom to the initial image
             let imgToZoom = img;
@@ -207,7 +213,7 @@ class MJ_Handler {
     // folder: the folder name to save the files to. defaults to output
     // cb: unused?
     // aiUpscale: whether to run an additional AI upscale on the images
-    infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false) {
+    infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false,MJ_imgObj = {}) {
         return new Promise(async (resolve, reject) => {
             // set the running process flag to true
             this.runningProcess = true;
@@ -316,11 +322,14 @@ class MJ_Handler {
                     resolve();
                     break;
                 }
+                MJ_imgObj.url = img.url;
+                MJ_imgObj.uuid = img.uuid.value;
+                // TODO: finish building the MJ_imgObj
                 this.logger({ mj: "Initial Midjourney image generation completed" });
 
                 // save the quad files
                 this.makeFileFromIMGobj(img).then(async(res) => {
-                    await this.writeEXIFdataToPNG(res, img.uuid.value, img.uuid.value, img.prompt, MJ_imgObj);
+                    await this.writeEXIFdataToPNG(res, MJ_imgObj);
                     });
                 // set up the queues
                 let upscaleQueue = [];
