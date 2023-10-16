@@ -325,6 +325,7 @@ class MJ_Handler {
                 MJ_imgObj.url = img.url;
                 MJ_imgObj.uuid = img.uuid.value;
                 // TODO: finish building the MJ_imgObj
+                // TODO: see https://chat.openai.com/c/dd7488f2-733b-444f-a350-d8fa9a5c64fe for info on custom tags
                 this.logger({ mj: "Initial Midjourney image generation completed" });
 
                 // save the quad files
