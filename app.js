@@ -55,8 +55,8 @@ let exifTool = new EXIF();
 // Define a destination path for the upscaled images to be used later
 const upscaleDest = "output/upscaled/";
 
-class MJ_img{
-    constructor(prompt){
+class MJ_img{ // TODO: rename this class to MJ_imgInfo and rename any objects that are are created from it
+    constructor(prompt){ // TODO: add params for the rest of the properties of this class and have default values set here
         this.url = "";
         this.uuid = "";
         this.prompt = prompt;
