@@ -11,7 +11,7 @@
     "discord-api-types": "^0.37.50",
     "discord.js": "^14.13.0",
     "discordie": "^0.11.0",
-    "exiftool-js-read-write": "github:andrewmcdan/Exiftool-JS-read-write",
+    "exiftool-js-read-write": "git+:https://github.com/andrewmcdan/Exiftool-JS-read-write.git",
     "express": "^4.18.2",
     "figlet": "^1.6.0",
     "inquirer": "^9.2.11",
