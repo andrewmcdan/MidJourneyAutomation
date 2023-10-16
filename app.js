@@ -16,7 +16,7 @@ import stringifyObject from 'stringify-object'; // Importing a module for conver
 import Discordie from "discordie"; // Importing the 'Discordie' library for Discord bot functionality.
 import express from "express"; // Importing the 'express' library for creating a web server.
 import Upscaler from 'ai-upscale-module'; // Importing the 'Upscaler' class from a package.
-import Metadata from "@enviro/metadata"; // For editing the exif data of images.
+import EXIF from 'exiftool-js-read-write';
 
 // Define a set of question messages for prompts
 const questionMessages = {
@@ -37,11 +37,20 @@ const questionMessages = {
 // Initialize a variable to control logging
 let MJloggerEnabled = false;
 
-// fileCounter is used for naming files when naming of files fails in multiple ways
-let fileCounter = 0;
-
 // Create an instance of the 'Upscaler' class with a default output path
 let upscaler = new Upscaler({ defaultOutputPath: "output/upscaled/" });
+
+let exifTool = new EXIF();
+
+
+// these are the ways to set exif data. can also send a collection of strings. e.g. "-all=","-json"
+// let args1 = ["-all=","-json"]; // Works
+// let args2 = {document: "things", comment: "test"}; // Works
+// let args3 = [{document: "things"},{ comment: "test"}]; // Does not work
+// exifTool.setExifData("output/A_chilling_merger_of_organic_and_mechanical_elements_whe_72df3dbf-8d89-47fd-882d-4a33a620473f.png",false, args2).then((res) => {console.log("res: ", res);}).catch((err) => {console.log("err: ", err);});
+// await waitSeconds(3005);
+
+
 
 // Define a destination path for the upscaled images to be used later
 const upscaleDest = "output/upscaled/";
@@ -87,36 +96,8 @@ class MJ_Handler {
 
     async writeEXIFdataToPNG(filePath,UUID,parentUUID,prompt,keywords) {
         console.log("Writing EXIF data to " + filePath);
-        await Metadata.configurator({
-            default: true,
-            no_cache_cleanup: true,
-            tags: [
-                {
-                    name: "Prompt",
-                    type: "string",
-                    exifPropGroup: "Exif",
-                    exifPropSubGroup: "Main",
-                },
-                {
-                    name: "UUID",
-                    type: "string",
-                    exifPropGroup: "Exif",
-                    exifPropSubGroup: "Info",
-                },
-                {
-                    name: "Parent_UUID",
-                    type: "string",
-                    exifPropGroup: "Exif",
-                    exifPropSubGroup: "Info",
-                },
-                {
-                    name: "Keywords",
-                    type: "string",
-                    exifPropGroup: "Exif",
-                    exifPropSubGroup: "Info",
-                }
-            ],
-        });
+
+
         
         let keywordsString = "";
         // convert the keywords array to a string
@@ -124,33 +105,7 @@ class MJ_Handler {
             keywordsString += k + ", ";
         });
         keywordsString = keywordsString.substring(0, keywordsString.length - 2); // remove the last comma and space
-        try {
-            const metadata = await Metadata.set(filePath, {
-                metadata: true,
-                new: true,
-                tags: [
-                    {
-                        name: "Prompt",
-                        value: prompt,
-                    },
-                    {
-                        name: "UUID",
-                        value: UUID,
-                    },
-                    {
-                        name: "Parent_UUID",
-                        value: parentUUID,
-                    },
-                    {
-                        name: "Keywords",
-                        value: keywordsString,
-                    }
-                ],
-            });
-            console.log(metadata);
-        } catch (e) {
-            console.error(e);
-        }
+        
     }
 
     // run an infinite zoom 
@@ -1314,6 +1269,7 @@ async function run() {
                     keywords: themeKeywords,
                     style: prompts.themes[parseInt(themeChoice) - 1].style
                 };
+                basicAnswers.CHATGPTGENERATIONS = parseInt(basicAnswers.CHATGPTGENERATIONS);
                 if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
                 res = await generatePromptFromThemKeywords(theme, basicAnswers.CHATGPTGENERATIONS);
@@ -1512,6 +1468,7 @@ async function run() {
             let prompt = "";
             let ready;
             if (!runningProcess) ready = await readyToRun();
+            if(ready.READY === false) ready.subREADY = false;
             let relaxedEabledFromUserConfig = false;
             let promptSuffix = "";
 
@@ -1577,7 +1534,7 @@ async function run() {
             }
 
             // print done message
-            if (!cancelTheRunner) {
+            if (!cancelTheRunner && ready.subREADY) {
                 printDone();
                 await waitSeconds(3);
             }
