@@ -15,7 +15,7 @@
     "express": "^4.18.2",
     "figlet": "^1.6.0",
     "inquirer": "^9.2.11",
-    "large-download": "^1.0.0",
+    "large-download": "git+:https://github.com/andrewmcdan/large-download.git",
     "midjourney-discord-bridge": "github:andrewmcdan/midjourney-discord-bridge",
     "sharp": "^0.32.6",
     "stringify-object": "^5.0.0"
