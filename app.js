@@ -55,6 +55,16 @@ let exifTool = new EXIF();
 // Define a destination path for the upscaled images to be used later
 const upscaleDest = "output/upscaled/";
 
+class MJ_img{
+    constructor(prompt){
+        this.url = "";
+        this.uuid = "";
+        this.prompt = prompt;
+        this.parentUUID = "";
+        this.theme = {};
+    }
+}
+
 class MJ_Handler {
     constructor(config) {
         // initialize the config and check for required values. Throw an error if any are missing.
@@ -94,7 +104,7 @@ class MJ_Handler {
         return this.runningProcess;
     }
 
-    async writeEXIFdataToPNG(filePath,UUID,parentUUID,prompt,keywords) {
+    async writeEXIFdataToPNG(filePath,UUID,parentUUID,prompt,MJ_imgObj) {
         console.log("Writing EXIF data to " + filePath);
 
 
@@ -278,7 +288,7 @@ class MJ_Handler {
     // maxZooms: the max number of times to run the zoom loop
     // printInfo: whether to print the Midjourney info to the console
     // aiUpscale: whether to run an additional AI upscale on the images
-    main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false, keywords = []) {
+    main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false, MJ_imgObj = {}) {
         return new Promise(async (resolve, reject) => {
             this.runningProcess = true;
             maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
@@ -310,7 +320,7 @@ class MJ_Handler {
 
                 // save the quad files
                 this.makeFileFromIMGobj(img).then(async(res) => {
-                    await this.writeEXIFdataToPNG(res, img.uuid.value, img.uuid.value, img.prompt, keywords);
+                    await this.writeEXIFdataToPNG(res, img.uuid.value, img.uuid.value, img.prompt, MJ_imgObj);
                     });
                 // set up the queues
                 let upscaleQueue = [];
@@ -1009,6 +1019,8 @@ async function run() {
     let removeTheme;
     let runningProcess = false;
 
+    let MJ_imgsArray = [];
+
     let runnerGo = false;
 
     while (menuOption != "0") {
@@ -1299,6 +1311,17 @@ async function run() {
                 promptAnswer = [];
                 res.prompts.forEach((prompt, i) => {
                     promptAnswer.push(prompt);
+                    MJ_imgsArray.push(new MJ_img(prompt));
+                    MJ_imgsArray[i].basicAnswers = {};
+                    MJ_imgsArray[i].basicAnswers.GENERATIONS = basicAnswers.GENERATIONS;
+                    MJ_imgsArray[i].basicAnswers.UPSCALE = basicAnswers.UPSCALE;
+                    MJ_imgsArray[i].basicAnswers.VARIATION = basicAnswers.VARIATION;
+                    MJ_imgsArray[i].basicAnswers.ZOOM = basicAnswers.ZOOM;
+                    MJ_imgsArray[i].basicAnswers.AIUPSCALE = basicAnswers.AIUPSCALE;
+                    MJ_imgsArray[i].basicAnswers.CHATGPTGENERATIONS = basicAnswers.CHATGPTGENERATIONS;
+                    MJ_imgsArray[i].theme = {};
+                    MJ_imgsArray[i].theme.keywords = themeKeywords;
+                    MJ_imgsArray[i].theme.style = prompts.themes[parseInt(themeChoice) - 1].style;
                 });
                 // set the answers
                 generationsAnswer = parseInt(basicAnswers.GENERATIONS);
@@ -1492,7 +1515,7 @@ async function run() {
                         if (ready.READY === true) {
                             console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                             // run the main function
-                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale);
+                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, MJ_imgsArray[i]);
                             if (i < promptCount - 1) {
                                 printRunComplete();
                                 console.log("Pausing for a bit between runs...");
