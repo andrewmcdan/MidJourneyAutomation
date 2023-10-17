@@ -42,13 +42,14 @@ let upscaler = new Upscaler({ defaultOutputPath: "output/upscaled/" });
 
 let exifTool = new EXIF();
 
+console.log(await exifTool.loadTagDataJson());
 
 // these are the ways to set exif data. can also send a collection of strings. e.g. "-all=","-json"
 // let args1 = ["-all=","-json"]; // Works
-// let args2 = {document: "things", comment: "test"}; // Works
+let args2 = {document: "things", comment: "test"}; // Works
 // let args3 = [{document: "things"},{ comment: "test"}]; // Does not work
-// exifTool.setExifData("output/A_chilling_merger_of_organic_and_mechanical_elements_whe_72df3dbf-8d89-47fd-882d-4a33a620473f.png",false, args2).then((res) => {console.log("res: ", res);}).catch((err) => {console.log("err: ", err);});
-// await waitSeconds(3005);
+exifTool.setExifData("output/An_abandoned_amusement_park_at_night_the_once_cheerful_r_166a6ccd-f72d-4480-8001-e55900691827.png",false, true, args2).then((res) => {console.log("res: ", res);}).catch((err) => {console.log("err: ", err);});
+await waitSeconds(3005);
 
 
 
