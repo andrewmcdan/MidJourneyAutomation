@@ -744,7 +744,7 @@ async function setup() {
     midjourney.registerMJLoggerCB(MJlogger_MJbridge);
 }
 
-// Lgging function dsigned to print to the console in a specific location so that it doesn't interfere with the prompts
+// Logging function designed to print to the console in a specific location so that it doesn't interfere with the prompts
 async function MJlogger(msg) {
     if (MJloggerEnabled) {
         if (msg.mj != null && msg.mj != undefined) {
