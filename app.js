@@ -52,10 +52,10 @@ const MJLogger_runner = (data) => {
     MJlogger({ title: loggerTitle.runner, text: data, line: 1, jsonStringify: false });
 }
 const MJlogger_MJbridge = (data) => {
-    MJlogger({ title: loggerTitle.MJ, text: data, line: 3, jsonStringify: false });
+    MJlogger({ title: loggerTitle.MJ, text: data, line: 6, jsonStringify: false });
 }
 const MJLogger_exifTool = (data) => {
-    MJlogger({ title: loggerTitle.exifTool, text: data, line: 10, jsonStringify: true });
+    MJlogger({ title: loggerTitle.exifTool, text: data, line: 20, jsonStringify: true });
 }
 
 // Initialize a variable to control logging
@@ -533,8 +533,7 @@ class MJ_Handler {
                 // run the AI upscale on the image sending it the filepath and the destination folder
                 // the destination folder is derived from the filepath by removing the filename and adding "upscaled/"
                 upscaler.upscale(file, file.substring(0, file.lastIndexOf("/")) + "/upscaled/").then(async () => { // async so that we can await the waitSeconds function making sure we see the log message
-                    this.logger("Upscaled image saved to " + upscaleDest + filename + '.jpg');
-                    await waitSeconds(1);
+                    this.logger("Upscale job started for image: " + upscaleDest + filename + '.jpg');
                 });
             }
             resolve("output/" + filename + '.png');
@@ -1749,7 +1748,7 @@ async function run() {
             while (runningProcess || subRunningProcess) {
                 // create string of dots of length loopCount
                 let dots = ".".repeat(loopCount);
-                MJLogger_runner(dots);
+                MJLogger_runner("Number of running upscale jobs: " + upscaler.getNumberOfRunningJobs() + "\nNumber of waiting upscale jobs: " + upscaler.getNumberOfWaitingJobs() + "\n" + dots);
                 loopCount++;
                 await waitSeconds(0.5);
                 if (loopCount > 10) loopCount = 1;
