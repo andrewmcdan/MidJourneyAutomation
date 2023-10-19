@@ -26,6 +26,8 @@ console.log("Starting Midjourney Discord Bot...");
 let experimentalChatPromptEnabled = true;
 let exifToolLoggingEnabled = false;
 
+let doLoginEnabled = true;
+
 // Define a set of question messages for prompts
 const questionMessages = {
     SENDTOCHATGPT: "Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.",
@@ -550,11 +552,32 @@ try {
     process.exit(1);
 }
 
+if(userConfig.openai_key == null || userConfig.openai_key == undefined) {
+    console.log("Error: openai_key is not set in user.json. Please set it and try again.");
+    process.exit(1);
+}
+if(userConfig.CLIENT_ID == null || userConfig.CLIENT_ID == undefined || userConfig.CLIENT_SECRET == null || userConfig.CLIENT_SECRET == undefined) {
+    doLoginEnabled = false;
+}
+if(userConfig.max_ChatGPT_Responses == null || userConfig.max_ChatGPT_Responses == undefined) {
+    userConfig.max_ChatGPT_Responses = 25;
+}
+if(userConfig.wait_time_after_done == null || userConfig.wait_time_after_done == undefined) {
+    userConfig.wait_time_after_done = 10;
+}
+if(userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined) {
+    userConfig.relaxedEnabled = false;
+}
+
 // create an instance of express for the login process
 const app = express();
 
 // doLogin handles the login process when a token isn't provided in user.json
 const doLogin = async () => {
+    if(doLoginEnabled == false) {
+        console.log("Error: CLIENT_ID and CLIENT_SECRET are not set in user.json. Please set them and try again.");
+        process.exit(1);
+    }
     console.log("Log in to Discord using browser:");
     console.log("Browser extension \"Run Javascript\" is required to get the token from the browser.");
     console.log("https://chrome.google.com/webstore/detail/run-javascript/lmilalhkkdhfieeienjbiicclobibjao");
@@ -585,7 +608,7 @@ const doLogin = async () => {
                 'client_id': userConfig.CLIENT_ID,
                 'client_secret': userConfig.CLIENT_SECRET,
                 'grant_type': 'authorization_code',
-                'redirect_uri': userConfig.REDIRECT_URI,
+                'redirect_uri': "http://localhost:9999/api/callback",
                 'code': code
             }),
             {
@@ -641,7 +664,7 @@ try {
 // setup() runs when the program starts and inits most everything
 async function setup() {
     // if we don't have a token, do the login process
-    if (userConfig.token == "" || userConfig.token == null) {
+    if (userConfig.token == "" || userConfig.token == null || userConfig.token == undefined) {
         userConfig.token = await doLogin();
         fs.writeFileSync('user.json', JSON.stringify(userConfig, null, 2));
     }
@@ -670,7 +693,6 @@ async function setup() {
     while (!DiscordieReady) {
         await waitSeconds(1);
     }
-
 
     // get list of guilds
     let guilds = await DiscordClient.Guilds.toArray();
@@ -707,15 +729,15 @@ async function setup() {
     });
 
     // set the guild id and channel id
-    guild_id_from_discordie = guild.id;
-    channel_id_from_discordie = channel.id;
+    userConfig.guild_id = guild.id;
+    userConfig.channel_id = channel.id;
     console.log("Shutting down Discordie client...");
     await DiscordClient.disconnect();
     // start the Midjourney instance
     midjourney = new MJ_Handler({
         token: userConfig.token,
-        guild_id: guild_id_from_discordie,
-        channel_id: channel_id_from_discordie
+        guild_id: userConfig.guild_id,
+        channel_id: userConfig.channel_id,
     });
 
     // register the MJ logger callback
@@ -1775,5 +1797,6 @@ intro();
 await setup();
 await run();
 await midjourney.close();
+fs.writeFileSync('user.json', JSON.stringify(userConfig, null, 2));
 console.log("Done. Goodbye!");
 process.exit(0);
