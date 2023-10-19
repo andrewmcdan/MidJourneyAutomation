@@ -1,0 +1,10 @@
+{"prompts":["A cybernetic viking demon standing against a Lovecraftian horror backdrop, with an ink-drawn aesthetic and vivid colors. The scene is atmospheric and eerie. Art style: Hyperreal.",
+"A cityscape filled with robot animals, each designed with high contrast cybernetics, inspired by the styles of Dan Mumford and Moebius. Art style: Hyperreal.",
+"Ukiyo-style depiction of a cyborg creature in a landscape teeming with demonic animals, under a sky filled with skulls and skeletons. Art style: Hyperreal.",
+"Anime-inspired demon animals roaming a futuristic cityscape, with elements of Moebius's art and a touch of Lovecraftian horror. Vivid colors highlight their cybernetic enhancements. Art style: Hyperreal.",
+"An atmospheric, eerie space scene showcasing cyborgs and robots amidst floating skulls and skeletons, drawing inspiration from anime and the works of Moebius and Dan Mumford. Art style: Hyperreal.",
+"A high contrast, ink-drawn landscape featuring a cybernetic viking demon battling robotic animals under a vividly colored, eerie sky. Art style: Hyperreal.",
+"Lovecraftian horror meets ukiyo in a cityscape teeming with cybernetic creatures and demon animals, all rendered in vivid color and high contrast. Art style: Hyperreal.",
+"A photograph-like image of a viking demon, half organic and half cybernetic, standing amidst a cityscape filled with eerie robotic animals. Art style: Hyperreal.",
+"An anime-inspired, hyperrealistic portrayal of a Lovecraftian space scene, filled with cybernetic creatures, viking demons, and an array of eerie, vividly colored celestial bodies. Art style: Hyperreal.",
+"An atmospheric, high-contrast landscape filled with demon animals and cyborgs, drawn in the style of Moebius and Dan Mumford, with elements of Lovecraftian horror. Art style: Hyperreal."]}

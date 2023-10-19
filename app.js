@@ -1,7 +1,11 @@
 // @TODO: 
 // - add question to each mode to ask if you want to save the quad files
+// - add question to each mode to ask if the user wants to save any files or just run the bot
 // - add question to each mode to ask if you want to use a custom folder and sequential naming
 // - add feature to upload an image to Midjourney and run it with a keyword. Perhaps have a list of keywords to choose from, or run the whole list.
+// - fix issue with modify theme, prompts, and options not returning to the main menu
+// - add suggestions when modifying prompts, themes, and options
+// - clear screen and redraw intro when the mj.main process starts
 
 // Import necessary libraries and modules
 import { MidjourneyDiscordBridge } from "midjourney-discord-bridge"; // Importing the 'MidjourneyDiscordBridge' class from a package.
@@ -18,6 +22,10 @@ import express from "express"; // Importing the 'express' library for creating a
 import Upscaler from 'ai-upscale-module'; // Importing the 'Upscaler' class from a package.
 import EXIF from 'exiftool-js-read-write';
 
+console.log("Starting Midjourney Discord Bot...");
+let experimentalChatPromptEnabled = true;
+let exifToolLoggingEnabled = false;
+
 // Define a set of question messages for prompts
 const questionMessages = {
     SENDTOCHATGPT: "Do you want to send your prompt to ChatGPT? The response will be sent as is to MJ.",
@@ -27,12 +35,28 @@ const questionMessages = {
     GENERATIONS: "How many runs per prompt do you want to run?",
     UPSCALE: "How many generations of upscaling do you want to allow? (Initial run + # of variation runs + # of zoom runs)",
     VARIATION: "How many generations of variations do you want to allow? (Started from the initial run)",
-    ZOOM: "How many generations of zoom out do you want to allow? (Cumulative of all runs)",
+    ZOOM: "How many generations of zoom out do you want to allow? (Cumulative of all MJ upscales)",
     FOLDER: "What is your folder name?",
     READY: "Ready to run?",
     THEME: 'What are your theme keywords? (comma separated)',
     AIUPSCALE: 'Do you want to run additional AI upscale on the images? (This may take a long time)'
 };
+
+const loggerTitle = {
+    MJ: "Midjourney log",
+    exifTool: "EXIF Tool",
+    runner: "Runner log",
+};
+
+const MJLogger_runner = (data) => {
+    MJlogger({ title: loggerTitle.runner, text: data, line: 1, jsonStringify: false });
+}
+const MJlogger_MJbridge = (data) => {
+    MJlogger({ title: loggerTitle.MJ, text: data, line: 3, jsonStringify: false });
+}
+const MJLogger_exifTool = (data) => {
+    MJlogger({ title: loggerTitle.exifTool, text: data, line: 10, jsonStringify: true });
+}
 
 // Initialize a variable to control logging
 let MJloggerEnabled = false;
@@ -40,29 +64,41 @@ let MJloggerEnabled = false;
 // Create an instance of the 'Upscaler' class with a default output path
 let upscaler = new Upscaler({ defaultOutputPath: "output/upscaled/" });
 
-let exifTool = new EXIF();
+let exifTool = new EXIF((...data) => {
+    if (exifToolLoggingEnabled) MJLogger_exifTool({ ...data });
+});
 
-console.log(await exifTool.loadTagDataJson());
+// console.log("load tag data: ", await exifTool.loadTagDataJson());
 
 // these are the ways to set exif data. can also send a collection of strings. e.g. "-all=","-json"
 // let args1 = ["-all=","-json"]; // Works
-let args2 = {document: "things", comment: "test"}; // Works
+// let args2 = {document: "things", comment: "test"}; // Works
 // let args3 = [{document: "things"},{ comment: "test"}]; // Does not work
-exifTool.setExifData("output/An_abandoned_amusement_park_at_night_the_once_cheerful_r_166a6ccd-f72d-4480-8001-e55900691827.png",false, true, args2).then((res) => {console.log("res: ", res);}).catch((err) => {console.log("err: ", err);});
-await waitSeconds(3005);
+// exifTool.setExifData("output/A_beautifully_lit_Halloween_themed_tech_fair_showcasing__4bd15940-abb8-418c-bfce-777f8bc70613.png",false, true, args2).then((res) => {console.log("res47: ", res);}).catch((err) => {console.log("err47: ", err);});
+// await waitSeconds(3005);
 
 
 
 // Define a destination path for the upscaled images to be used later
 const upscaleDest = "output/upscaled/";
 
-class MJ_img{ // TODO: rename this class to MJ_imgInfo and rename any objects that are are created from it
-    constructor(prompt){ // TODO: add params for the rest of the properties of this class and have default values set here
-        this.url = "";
-        this.uuid = "";
-        this.prompt = prompt;
-        this.parentUUID = "";
-        this.theme = {};
+class MJ_imgInfo {
+    constructor(uuid) {
+        this.UUID = uuid;
+        this.imageData = {};
+        this.imageDataIsSet = false;
+    }
+
+    async getInfoFromServer() {
+        // TODO: as it turns out, you have to be logged into Midjourney website to get the job status. So this is not going to work with fetch. Maybe try it with puppeteer or axios?
+        // const jobStatusResponse = await fetch("https://www.midjourney.com/api/app/job-status/", {
+        //     method: "POST",
+        //     headers: { "Content-Type": "application/json" },
+        //     body: JSON.stringify({ jobIds: ["\""+this.uuid+"\""] }),
+        // });
+        // this.imageData = await jobStatusResponse.json();
+        
+        this.imageDataIsSet = true;
     }
 }
 
@@ -105,24 +141,29 @@ class MJ_Handler {
         return this.runningProcess;
     }
 
-    async writeEXIFdataToPNG(filePath,MJ_imgObj) {
-        console.log("Writing EXIF data to " + filePath);
-        let data = {};
-        data.document = "Midjourney";
-        data.comment = "Prompt: " + prompt;
-        data.label = UUID;
-        data.make = parentUUID;
-        data.artist = MJ_imgObj.theme;
-        exifTool.setExifData(filePath,false, data).then((res) => {console.log("res: ", res);}).catch((err) => {console.log("err: ", err);});
+    async writeEXIFdataToPNG(filePath, MJ_imgObj) {
+        // TODO: see https://chat.openai.com/c/dd7488f2-733b-444f-a350-d8fa9a5c64fe for info on custom tags
+        // await MJ_imgObj.getInfoFromServer();
+        // while(!MJ_imgObj.imageDataIsSet) {
+        //     await waitSeconds(1);
+        // }
+        // console.log("MJ_imgObj: ", MJ_imgObj); 
+        // let data = {};
+        // data.document = "Midjourney";
+        // data.comment = "Prompt: " + MJ_imgObj.prompt;
+        // data.label = MJ_imgObj.UUID;
+        // data.make = MJ_imgObj.parentUUID;
+        // data.artist = MJ_imgObj.theme;
+        //exifTool.setExifData(filePath, true, false, data).then((res) => { MJLogger_exifTool({ res }); }).catch((err) => { MJLogger_exifTool({ err }); });
 
-        
-        let keywordsString = "";
+        // TODO: finish this
+        // let keywordsString = "";
         // convert the keywords array to a string
-        keywords.forEach((k) => {
-            keywordsString += k + ", ";
-        });
-        keywordsString = keywordsString.substring(0, keywordsString.length - 2); // remove the last comma and space
-        
+        // keywords.forEach((k) => {
+        //     keywordsString += k + ", ";
+        // });
+        // keywordsString = keywordsString.substring(0, keywordsString.length - 2); // remove the last comma and space
+
     }
 
     // run an infinite zoom 
@@ -131,7 +172,7 @@ class MJ_Handler {
     // autoNameFiles: whether to automatically name using a counter or to use the name from the prompt / url
     // folder: the folder name to save the files to. defaults to output
     // aiUpscale: whether to run an additional AI upscale on the images
-    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false, MJ_imgObj = {}) {
+    async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false) {
         return new Promise(async (resolve, reject) => {
             // set the running process flag to true
             this.runningProcess = true;
@@ -142,20 +183,25 @@ class MJ_Handler {
                 // if the progress is not null, print it to the console
                 if (progress != null) {
                     // process.stdout.write(progress + "%  ");
-                    this.logger({ mj: progress + "%  " });
+                    this.logger(progress + "%  ");
                 }
                 // check if the kill process was called and exit the loop if it was
                 this.breakout();
             });
+            if (img == null) {
+                this.logger("Initial Midjourney image generation failed.");
+                await waitSeconds(2);
+                return;
+            }
             parentUUID = img.uuid.value;
             // at this point, we need to check if the kill process was called and exit the loop if it was
             if (!this.breakout()) resolve();
             // console.log("\nInitial Midjourney image generation completed\n");
-            this.logger({ mj: "Initial Midjourney image generation completed" });
+            this.logger("Initial Midjourney image generation completed");
             // if saveQuadFiles is true, save the quad files
-            if (saveQuadFiles) this.makeFileFromIMGobj(img).then(async(res) => {
+            if (saveQuadFiles) this.makeFileFromIMGobj(img).then(async (res) => {
                 await this.writeEXIFdataToPNG(res, keywords);
-                });
+            });
             // set the image to zoom to the initial image
             let imgToZoom = img;
             let imgToScale = img;
@@ -185,6 +231,7 @@ class MJ_Handler {
                 let random1to4 = Math.floor(Math.random() * 4) + 1;
                 // upscale the image (random 1 to 4), and send the breakout function as a callback
                 imgToZoom = await this.mj.upscaleImage(imgToScale, random1to4, img.prompt, this.breakout);
+                if (imgToZoom == null) break;
                 // at this point, we need to check if the kill process was called and exit the loop if it was
                 if (!this.breakout()) {
                     resolve();
@@ -194,6 +241,7 @@ class MJ_Handler {
                 this.makeFileFromIMGobj(imgToZoom, autoNameFiles ? filename : "", aiUpscale);
                 // run the zoom out function and send the breakout function as a callback
                 imgToScale = await this.mj.zoomOut(imgToZoom, img.prompt, this.breakout);
+                if (imgToScale == null) break;
                 // at this point, we need to check if the kill process was called and exit the loop if it was
                 if (!this.breakout()) {
                     resolve();
@@ -214,7 +262,7 @@ class MJ_Handler {
     // folder: the folder name to save the files to. defaults to output
     // cb: unused?
     // aiUpscale: whether to run an additional AI upscale on the images
-    infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false,MJ_imgObj = {}) {
+    infinitePromptVariationUpscales(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", cb = null, aiUpscale = false) {
         return new Promise(async (resolve, reject) => {
             // set the running process flag to true
             this.runningProcess = true;
@@ -223,15 +271,20 @@ class MJ_Handler {
                 // if the progress is not null, print it to the console
                 if (progress != null) {
                     // process.stdout.write(progress + "%  ");
-                    this.logger({ mj: progress + "%  " });
+                    this.logger(progress + "%  ");
                 }
                 // check if the kill process was called and exit the loop if it was
                 this.breakout();
             });
+            if (img == null) {
+                this.logger("Initial Midjourney image generation failed.");
+                await waitSeconds(2);
+                return;
+            }
             // at this point, we need to check if the kill process was called and exit the loop if it was
             if (!this.breakout()) resolve();
             // console.log("\nInitial Midjourney image generation completed");
-            this.logger({ mj: "Initial Midjourney image generation completed" });
+            this.logger("Initial Midjourney image generation completed");
             // if saveQuadFiles is true, save the quad files
             if (saveQuadFiles) await this.makeFileFromIMGobj(img);
             // set the image to upscale to the initial image
@@ -262,7 +315,7 @@ class MJ_Handler {
                     fileCount++;
                     // upscale the image and save it
                     let temp = await this.mj.upscaleImage(imgToUpscale, i, img.prompt, this.breakout);
-                    ;
+                    if (temp == null) break;
                     if (!this.breakout()) {
                         resolve();
                         break;
@@ -271,6 +324,7 @@ class MJ_Handler {
                 }
                 // reroll the image and save it
                 imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt, this.breakout);
+                if (imgToUpscale == null) break;
                 if (!this.breakout()) {
                     resolve();
                     break;
@@ -295,7 +349,7 @@ class MJ_Handler {
     // maxZooms: the max number of times to run the zoom loop
     // printInfo: whether to print the Midjourney info to the console
     // aiUpscale: whether to run an additional AI upscale on the images
-    main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false, MJ_imgObj = {}) {
+    main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false) {
         return new Promise(async (resolve, reject) => {
             this.runningProcess = true;
             maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
@@ -306,7 +360,8 @@ class MJ_Handler {
             // print the Midjourney info to the console if printInfo is true
             if (printInfo) {
                 let info = await mj.getInfo();
-                console.log("Midjourney info:\n\n", info.embeds[0].description);
+                // console.log("Midjourney info:\n\n", info.embeds[0].description);
+                this.logger("Midjourney info:\n\n" + info.embeds[0].description);
             }
             // loop while the max generations count is less than the max generations
             while (maxGenerationsCount < maxGenerations) {
@@ -317,22 +372,21 @@ class MJ_Handler {
                 // send the prompt to Midjourney and wait for the response. img is an object holding the response
                 let img = await mj.generateImage(MJprompt, (obj, progress) => {
                     //process.stdout.write(progress + "%  ");
-                    this.logger({ mj: progress + "%  " });
+                    this.logger(progress + "%  ");
                 });
+                if (img == null) break;
                 if (!this.breakout()) {
                     resolve();
                     break;
                 }
-                MJ_imgObj.url = img.url;
-                MJ_imgObj.uuid = img.uuid.value;
-                // TODO: finish building the MJ_imgObj
-                // TODO: see https://chat.openai.com/c/dd7488f2-733b-444f-a350-d8fa9a5c64fe for info on custom tags
-                this.logger({ mj: "Initial Midjourney image generation completed" });
+                let MJ_imgInfoObj = new MJ_imgInfo(img.uuid.value);
+                
+                this.logger("Initial Midjourney image generation completed");
 
                 // save the quad files
-                this.makeFileFromIMGobj(img).then(async(res) => {
-                    await this.writeEXIFdataToPNG(res, MJ_imgObj);
-                    });
+                this.makeFileFromIMGobj(img).then(async (res) => {
+                    this.writeEXIFdataToPNG(res, MJ_imgInfoObj);
+                });
                 // set up the queues
                 let upscaleQueue = [];
                 upscaleQueue.push(img);
@@ -351,7 +405,7 @@ class MJ_Handler {
                         resolve();
                         break; // Exit the loop if breakout() returns false
                     }
-                    this.logger({ mj: "Processing request queues...." });
+                    this.logger("Processing request queues....");
                     // loop through the queues and run the appropriate function
                     while (upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales) {
                         // get the image from the queue
@@ -359,8 +413,12 @@ class MJ_Handler {
                         for (let i = 1; i <= 4; i++) {
                             // Upscale the image based on the loop counter 'i'
                             let upscaledImg = await mj.upscaleImage(img, i, img.prompt);
+                            if (upscaledImg == null) break;
+                            let MJ_imgInfoObj = new MJ_imgInfo(upscaledImg.uuid.value);
                             // Save the upscaled image, add it to the zoom queue, and AI upscale it if aiUpscale is true
-                            this.makeFileFromIMGobj(upscaledImg, "", aiUpscale);
+                            this.makeFileFromIMGobj(upscaledImg, "", aiUpscale).then(async (res) => {
+                                this.writeEXIFdataToPNG(res, MJ_imgInfoObj);
+                            });
                             if (!this.breakout()) {
                                 resolve();
                                 break; // Exit the loop if breakout() returns false
@@ -377,8 +435,12 @@ class MJ_Handler {
                         for (let i = 1; i <= 4; i++) {
                             // Run the variation function on the image based on the loop counter 'i'
                             let variationImg = await mj.variation(img, i, img.prompt);
+                            if (variationImg == null) break;
+                            let MJ_imgInfoObj = new MJ_imgInfo(variationImg.uuid.value);
                             // Save the variation image
-                            this.makeFileFromIMGobj(variationImg);
+                            this.makeFileFromIMGobj(variationImg).then(async (res) => {
+                                this.writeEXIFdataToPNG(res, MJ_imgInfoObj);
+                            });
                             if (!this.breakout()) {
                                 resolve();
                                 break; // Exit the loop if breakout() returns false
@@ -395,8 +457,12 @@ class MJ_Handler {
                         let img = zoomQueue.shift();
                         // run the zoom out function on the image and save it
                         let zoomedImg = await mj.zoomOut(img, img.prompt);
+                        if (zoomedImg == null) break;
+                        let MJ_imgInfoObj = new MJ_imgInfo(zoomedImg.uuid.value);
                         // save the image but don't AI upscale it
-                        this.makeFileFromIMGobj(zoomedImg);
+                        this.makeFileFromIMGobj(zoomedImg).then(async (res) => {
+                            this.writeEXIFdataToPNG(res, MJ_imgInfoObj);
+                        });
                         if (!this.breakout()) {
                             resolve();
                             break; // Exit the loop if breakout() returns false
@@ -458,7 +524,7 @@ class MJ_Handler {
             }
             // send the data to sharp and save it as a png
             await sharp(response.data).toFile("output/" + filename + '.png');
-            this.logger({ mj: "Image saved to " + "output/" + filename + '.png' });
+            this.logger("Image saved to " + "output/" + filename + '.png');
             //await waitSeconds(1);
             // if aiUpscale is true, run the AI upscale on the image
             if (upscaleImg) {
@@ -467,7 +533,7 @@ class MJ_Handler {
                 // run the AI upscale on the image sending it the filepath and the destination folder
                 // the destination folder is derived from the filepath by removing the filename and adding "upscaled/"
                 upscaler.upscale(file, file.substring(0, file.lastIndexOf("/")) + "/upscaled/").then(async () => { // async so that we can await the waitSeconds function making sure we see the log message
-                    this.logger({ mj: "Upscaled image saved to " + upscaleDest + filename + '.jpg' });
+                    this.logger("Upscaled image saved to " + upscaleDest + filename + '.jpg');
                     await waitSeconds(1);
                 });
             }
@@ -588,6 +654,8 @@ async function setup() {
 
     // Event handler for when Discordie is ready
     DiscordClient.Dispatcher.on(DiscordEvents.GATEWAY_READY, e => {
+        process.stdout.moveCursor(0, -1);
+        process.stdout.clearLine();
         console.log("Connected as: " + DiscordClient.User.username);
         DiscordieReady = true;
     });
@@ -603,6 +671,7 @@ async function setup() {
     while (!DiscordieReady) {
         await waitSeconds(1);
     }
+
 
     // get list of guilds
     let guilds = await DiscordClient.Guilds.toArray();
@@ -651,29 +720,113 @@ async function setup() {
     });
 
     // register the MJ logger callback
-    midjourney.registerMJLoggerCB(MJlogger);
+    midjourney.registerMJLoggerCB(MJlogger_MJbridge);
 }
 
 // Lgging function dsigned to print to the console in a specific location so that it doesn't interfere with the prompts
 async function MJlogger(msg) {
     if (MJloggerEnabled) {
-        if (msg.mj != null) {
-            printToLineRelative(2, "Midjourney log: " + msg.mj);
+        if (msg.mj != null && msg.mj != undefined) {
+            printToLineRelative(3, "Midjourney log:\n" + msg.mj);
         }
-        if (msg.runner != null) {
-            printToLineRelative(1, "Runner log: " + msg.runner);
+        if (msg.runner != null && msg.runner != undefined) {
+            printToLineRelative(1, "Runner log:\n" + msg.runner);
+        }
+        if (msg.exif_logger != null && msg.exif_logger != undefined) {
+            printToLineRelative(10, "ExifTool log:\n\r" + JSON.stringify(msg.exif_logger, null, 2));
+        }
+        for (let key in msg) {
+            if (msg[key].title == null || msg[key].title == undefined) continue;
+            if (msg[key].text != null && msg[key].text != undefined) continue;
+            if (msg[key].line == null || msg[key].line == undefined) continue;
+            let logTitle = msg[key].title;
+            let logText = msg[key].text;
+            let logLine = msg[key].line;
+            if (msg[key].jsonStringify != null && msg[key].jsonStringify != undefined) {
+                if (msg[key].jsonStringify) logText = JSON.stringify(logText, null, 2);
+            }
+            printToLineRelative(logLine, logTitle + ":\n" + logText);
+        }
+        if (msg.title != null && msg.title != undefined &&
+            msg.text != null && msg.text != undefined &&
+            msg.line != null && msg.line != undefined) {
+            let logTitle = msg.title;
+            let logText = msg.text;
+            let logLine = msg.line;
+            if (msg.jsonStringify !== null && msg.jsonStringify !== undefined) {
+                if (msg.jsonStringify) logText = JSON.stringify(logText, null, 2);
+            }
+            if (typeof logText == "object") logText = JSON.stringify(logText, null, 2);
+            printToLineRelative(logLine, logTitle + ":\n" + logText);
         }
     }
 }
 
 // print a message to the console in a location relative to the current cursor position
-async function printToLineRelative(line, text) {
+function printToLineRelative(line, text) {
+
+    //get line count
+    let textLines = text.split("\n");
+    let lineCount = textLines.length;
+    let screenWidth = process.stdout.columns;
+    textLines.forEach((l) => {
+        l.replace("\t", "    ");
+        if (l.length > screenWidth) {
+            lineCount += Math.floor(l.length / screenWidth);
+        }
+    });
+
+    // move to start of the location
     process.stdout.cursorTo(0);
     process.stdout.moveCursor(0, line);
-    process.stdout.clearLine();
-    process.stdout.write(text);
+
+
+    // we're gonna do this twice because if the screen has to scroll it screws it up otherwise
+    ///////////////////////////////////////////////////////////////////
+    // clear the entire location
+    for (let i = 0; i < lineCount; i++) {
+        process.stdout.clearLine();
+        process.stdout.moveCursor(0, 1);
+    }
+
+    // move back to the start of the location
     process.stdout.cursorTo(0);
-    process.stdout.moveCursor(0, -line);
+    for (let i = 0; i < lineCount; i++) {
+        process.stdout.moveCursor(0, -1);
+    }
+
+    // print the text
+    process.stdout.write(text);
+
+    // move back to the start of the location
+    process.stdout.cursorTo(0);
+    process.stdout.moveCursor(0, -(lineCount - 1)); // go back to the start of the line
+
+    // do it again
+    //////////////////////////////////////////////////////////////////
+    // clear the entire location
+    for (let i = 0; i < lineCount; i++) {
+        process.stdout.clearLine();
+        process.stdout.moveCursor(0, 1);
+    }
+
+    // move back to the start of the location
+    process.stdout.cursorTo(0);
+    for (let i = 0; i < lineCount; i++) {
+        process.stdout.moveCursor(0, -1);
+    }
+
+    // print the text
+    process.stdout.write(text);
+
+
+    // move back to the start of the location
+    process.stdout.cursorTo(0);
+    process.stdout.moveCursor(0, -(lineCount - 1)); // go back to the start of the line
+
+    // and we're done
+    //////////////////////////////////////////////////////////
+    process.stdout.moveCursor(0, -line); // move all the way to where the cursor was to begin with
 }
 
 // send a prompt to chatgpt and return the response
@@ -728,18 +881,68 @@ async function sendChatGPTPrompt(prompt) {
 
 // generate a prompt from a theme object
 async function generatePromptFromThemKeywords(theme, count = 10) {
-    console.log("Generating prompts from theme: ", JSON.stringify(theme));
-    let chatPrompt = "your role is to design theme based prompts for an AI image generator, midjourney. Your theme should be based upon the following keywords but you can get creative with it: ";
+    let chatPrompt = "Your role is to design theme based prompts for an AI image generator, midjourney. Your theme should be based upon the following keywords but you can get creative with it: ";
+    let experimentalChatPrompt = "Your role is to design theme based prompts for an AI image generator, midjourney. Your theme should be based upon the following keywords and phrases (keywords / phrases may need to be interpreted as commands e.g. \"the nearest holiday less than one week before\" would return \"halloween\" during the week preceding halloween, and nothing otherwise) but you can get creative with it: ";
+    if (experimentalChatPromptEnabled) chatPrompt = experimentalChatPrompt;
     theme.keywords.forEach((themeKeyword) => {
         chatPrompt += themeKeyword + ", ";
     });
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
-    chatPrompt += ". An example prompt would look like this: Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud (Moebius), taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal. ";
-    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as negative, offensive, sexual, violent, or related.";
+    chatPrompt += ". An example prompt would look like this: \"Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics with the whimsicality of Jean Giraud (Moebius), taking cues from Ridley Scott's Alien and H. P. Lovecraft's cosmic horror, eerie, surreal.\" ";
+    chatPrompt += "Prefer succinctness over verbosity. Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     //console.log(chatResponse);
+    // if "chatRequest.txt" doesn't exist, create it
+    if (!fs.existsSync("chatRequest.txt")) {
+        fs.writeFileSync("chatRequest.txt", "");
+    }
+    fs.writeFileSync("chatRequest.txt", chatPrompt);
+    // if "chatResponse.txt" doesn't exist, create it
+    if (!fs.existsSync("chatResponse.txt")) {
+        fs.writeFileSync("chatResponse.txt", "");
+    }
+    fs.writeFileSync("chatResponse.txt", chatResponse);
     return chatResponse;
+}
+
+async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
+    console.log("Generating prompts from theme: ", JSON.stringify(theme));
+    let batchJobCount = Math.ceil(count / 10);
+    if (batchJobCount > 1) {
+        console.log("Prompt count > 10. Running " + batchJobCount + " chatGPT jobs.");
+    }
+    let prompts = [];
+    for (let i = 0; i < batchJobCount; i++) {
+        let isLastRun = i == batchJobCount - 1;
+        let isDivisibleByTen = count % 10 == 0;
+        let thisRunCount = 10;
+        if (isLastRun && !isDivisibleByTen) {
+            thisRunCount = count % 10;
+        } else if (isLastRun && isDivisibleByTen) {
+            thisRunCount = 10;
+        }
+        console.log("Running chatGPT job " + (i + 1) + " of " + batchJobCount + "... Generating " + thisRunCount + " prompts.");
+        let chatResponse = await generatePromptFromThemKeywords(theme, thisRunCount);
+        console.log({ chatResponse });
+        if (chatResponse != null) {
+            try {
+                JSON.parse(chatResponse).prompts.forEach((p) => {
+                    prompts.push(p);
+                });
+            } catch (e) {
+                console.log("Error parsing prompts: ", e);
+            }
+        }
+        if (i < batchJobCount - 1 && chatResponse != null) {
+            console.log();
+            console.log("Waiting 2 seconds between OpenAI requests...");
+            await waitSeconds(2);
+        }
+    }
+    console.log("Generated " + prompts.length + " prompts from theme: ", JSON.stringify(theme));
+    if (prompts.length == 0) return null;
+    return JSON.stringify({ prompts: prompts });
 }
 
 async function waitSeconds(count, cancelable = false) {
@@ -796,7 +999,9 @@ const intro = () => {
 const printDone = () => {
     let MJloggerEnabledState = MJloggerEnabled;
     MJloggerEnabled = true;
-    MJlogger({ mj: "", runner: "" });
+    // MJlogger({ mj: "", runner: "" });
+    MJLogger_runner("");
+    MJlogger_MJbridge("");
     MJloggerEnabled = MJloggerEnabledState;
     console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
     console.log(
@@ -825,6 +1030,7 @@ const printRunComplete = () => {
         )
     );
     console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
+    console.log();
 }
 
 const printPromptsFile = (choice = "all") => {
@@ -920,11 +1126,11 @@ const readyToRun = async () => {
 const askPromptQuestions = async () => {
     let res = {};
     res.PROMPT = await input({ message: questionMessages.PROMPT });
-    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS });
-    res.UPSCALE = await input({ message: questionMessages.UPSCALE });
+    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS, default: "1" });
+    res.UPSCALE = await input({ message: questionMessages.UPSCALE, default: "4" });
     res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
-    res.VARIATION = await input({ message: questionMessages.VARIATION });
-    res.ZOOM = await input({ message: questionMessages.ZOOM });
+    res.VARIATION = await input({ message: questionMessages.VARIATION, default: "0" });
+    res.ZOOM = await input({ message: questionMessages.ZOOM, default: "0" });
     return res;
 }
 
@@ -947,15 +1153,15 @@ const askThemeQuestions = async () => {
     res.STYLE = await input({ message: 'What is your style?' });
     let chatGPTCount = 100000;
     while (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
-        res.CHATGPTGENERATIONS = await input({ message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')' });
+        res.CHATGPTGENERATIONS = await input({ message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')', default: "5" });
         chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
         if (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
     }
-    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS });
-    res.UPSCALE = await input({ message: questionMessages.UPSCALE });
+    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS, default: "1" });
+    res.UPSCALE = await input({ message: questionMessages.UPSCALE, default: "4" });
     res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
-    res.VARIATION = await input({ message: questionMessages.VARIATION });
-    res.ZOOM = await input({ message: questionMessages.ZOOM });
+    res.VARIATION = await input({ message: questionMessages.VARIATION, default: "0" });
+    res.ZOOM = await input({ message: questionMessages.ZOOM, default: "0" });
     return res;
 }
 
@@ -963,15 +1169,15 @@ const askImageGenQuestions = async () => {
     let res = {};
     let chatGPTCount = 100000;
     while (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) {
-        res.CHATGPTGENERATIONS = await input({ message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')' });
+        res.CHATGPTGENERATIONS = await input({ message: 'How many prompts do you want to generate with chatgpt? (max ' + userConfig.max_ChatGPT_Responses + ')', default: "5" });
         chatGPTCount = parseInt(res.CHATGPTGENERATIONS);
         if (chatGPTCount > parseInt(userConfig.max_ChatGPT_Responses)) console.log("Error: You can only generate a maximum of " + userConfig.max_ChatGPT_Responses + " prompts with chatgpt.");
     }
-    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS });
-    res.UPSCALE = await input({ message: questionMessages.UPSCALE });
+    res.GENERATIONS = await input({ message: questionMessages.GENERATIONS, default: "1" });
+    res.UPSCALE = await input({ message: questionMessages.UPSCALE, default: "4" });
     res.AIUPSCALE = await confirm({ message: questionMessages.AIUPSCALE });
-    res.VARIATION = await input({ message: questionMessages.VARIATION });
-    res.ZOOM = await input({ message: questionMessages.ZOOM });
+    res.VARIATION = await input({ message: questionMessages.VARIATION, default: "0" });
+    res.ZOOM = await input({ message: questionMessages.ZOOM, default: "0" });
     return res;
 }
 
@@ -1029,8 +1235,6 @@ async function run() {
     let option;
     let removeTheme;
     let runningProcess = false;
-
-    let MJ_imgsArray = [];
 
     let runnerGo = false;
 
@@ -1295,7 +1499,7 @@ async function run() {
                 basicAnswers.CHATGPTGENERATIONS = parseInt(basicAnswers.CHATGPTGENERATIONS);
                 if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
-                res = await generatePromptFromThemKeywords(theme, basicAnswers.CHATGPTGENERATIONS);
+                res = await generatePromptFromThemKeywordsBatch(theme, basicAnswers.CHATGPTGENERATIONS);
                 if (res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
@@ -1322,17 +1526,6 @@ async function run() {
                 promptAnswer = [];
                 res.prompts.forEach((prompt, i) => {
                     promptAnswer.push(prompt);
-                    MJ_imgsArray.push(new MJ_img(prompt));
-                    MJ_imgsArray[i].basicAnswers = {};
-                    MJ_imgsArray[i].basicAnswers.GENERATIONS = basicAnswers.GENERATIONS;
-                    MJ_imgsArray[i].basicAnswers.UPSCALE = basicAnswers.UPSCALE;
-                    MJ_imgsArray[i].basicAnswers.VARIATION = basicAnswers.VARIATION;
-                    MJ_imgsArray[i].basicAnswers.ZOOM = basicAnswers.ZOOM;
-                    MJ_imgsArray[i].basicAnswers.AIUPSCALE = basicAnswers.AIUPSCALE;
-                    MJ_imgsArray[i].basicAnswers.CHATGPTGENERATIONS = basicAnswers.CHATGPTGENERATIONS;
-                    MJ_imgsArray[i].theme = {};
-                    MJ_imgsArray[i].theme.keywords = themeKeywords;
-                    MJ_imgsArray[i].theme.style = prompts.themes[parseInt(themeChoice) - 1].style;
                 });
                 // set the answers
                 generationsAnswer = parseInt(basicAnswers.GENERATIONS);
@@ -1357,7 +1550,7 @@ async function run() {
                 };
                 // generate the prompt from the theme
                 if (themeQuestions.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) themeQuestions.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
-                res = await generatePromptFromThemKeywords(theme, themeQuestions.CHATGPTGENERATIONS);
+                res = await generatePromptFromThemKeywordsBatch(theme, themeQuestions.CHATGPTGENERATIONS);
                 if (res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
@@ -1502,7 +1695,7 @@ async function run() {
             let prompt = "";
             let ready;
             if (!runningProcess) ready = await readyToRun();
-            if(ready.READY === false) ready.subREADY = false;
+            if (ready.READY === false) ready.subREADY = false;
             let relaxedEabledFromUserConfig = false;
             let promptSuffix = "";
 
@@ -1526,7 +1719,7 @@ async function run() {
                         if (ready.READY === true) {
                             console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                             // run the main function
-                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, MJ_imgsArray[i]);
+                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale);
                             if (i < promptCount - 1) {
                                 printRunComplete();
                                 console.log("Pausing for a bit between runs...");
@@ -1548,7 +1741,7 @@ async function run() {
             let cancelTheRunner = false;
             let cancellation = null;
             if (runningProcess) {
-                MJlogger({ runner: "running" });
+                MJLogger_runner("running");
                 cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheRunner = true; });
             }
 
@@ -1556,7 +1749,7 @@ async function run() {
             while (runningProcess || subRunningProcess) {
                 // create string of dots of length loopCount
                 let dots = ".".repeat(loopCount);
-                MJlogger({ runner: dots });
+                MJLogger_runner(dots);
                 loopCount++;
                 await waitSeconds(0.5);
                 if (loopCount > 10) loopCount = 1;

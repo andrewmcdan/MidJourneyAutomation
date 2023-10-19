@@ -135,12 +135,69 @@
     },
     {
       "keywords": [
-        "guns",
-        "h.p. lovecraft",
-        "horror films",
-        "firearms"
+        "animal",
+        "demon",
+        "ink drawing",
+        "high contrast",
+        "vivid color",
+        "intricate detail",
+        "japanese style"
       ],
-      "style": "cel shaded photograph"
+      "style": "ink drawing"
+    },
+    {
+      "keywords": [
+        "animal",
+        "demon",
+        "ink drawing",
+        "high contrast",
+        "intricate details"
+      ],
+      "style": "ink"
+    },
+    {
+      "keywords": [
+        "demon animals",
+        "robots",
+        "horror",
+        "ink drawing",
+        "photograph",
+        "cartoons",
+        "lovecraftian horror",
+        "anime",
+        "japanese",
+        "cybernetics",
+        "vivid color",
+        "skulls",
+        "citiscapes",
+        "landscapes"
+      ],
+      "style": "real"
+    },
+    {
+      "keywords": [
+        "demon animals",
+        "robots",
+        "cyborgs",
+        "cybernetics",
+        "viking demons",
+        "high contrast",
+        "ink drawing or cartoon",
+        " ukiyo",
+        "moebius",
+        "dan mumford",
+        "vivid color",
+        "space",
+        "cityscapes",
+        "landscapes",
+        "lovecraftioan horror",
+        "anime",
+        "photograph",
+        "skulls and skeletons",
+        "atmoshpheric",
+        "eerie"
+      ],
+      "style": "hyperreal"
     }
   ],
   "prompts": [
