@@ -21,6 +21,8 @@ import Discordie from "discordie"; // Importing the 'Discordie' library for Disc
 import express from "express"; // Importing the 'express' library for creating a web server.
 import Upscaler from 'ai-upscale-module'; // Importing the 'Upscaler' class from a package.
 import EXIF from 'exiftool-js-read-write';
+import puppeteer from 'puppeteer';
+import cheerio from 'cheerio';
 
 console.log("Starting Midjourney Discord Bot...");
 let experimentalChatPromptEnabled = true;
@@ -574,6 +576,7 @@ const app = express();
 
 // doLogin handles the login process when a token isn't provided in user.json
 const doLogin = async () => {
+    
     if(doLoginEnabled == false) {
         console.log("Error: CLIENT_ID and CLIENT_SECRET are not set in user.json. Please set them and try again.");
         process.exit(1);
@@ -649,8 +652,6 @@ var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
 var DiscordieReady = false;
 var midjourney = null;
-var guild_id_from_discordie = "";
-var channel_id_from_discordie = "";
 
 // get data from prompts file
 let prompts;

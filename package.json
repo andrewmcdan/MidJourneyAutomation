@@ -9,6 +9,7 @@
     "adm-zip": "^0.5.10",
     "ai-upscale-module": "file:../AI-Upscale-Module/",
     "chatgpt": "^5.2.5",
+    "cheerio": "^1.0.0-rc.12",
     "discord-api-types": "^0.37.50",
     "discord.js": "^14.13.0",
     "discordie": "^0.11.0",
@@ -18,6 +19,7 @@
     "inquirer": "^9.2.11",
     "large-download": "file:../large-download/",
     "midjourney-discord-bridge": "github:andrewmcdan/midjourney-discord-bridge",
+    "puppeteer": "^21.3.8",
     "sharp": "^0.32.6",
     "stringify-object": "^5.0.0"
   },
