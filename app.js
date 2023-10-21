@@ -1,11 +1,19 @@
-// @TODO: 
-// - add question to each mode to ask if you want to save the quad files
-// - add question to each mode to ask if the user wants to save any files or just run the bot
-// - add question to each mode to ask if you want to use a custom folder and sequential naming
-// - add feature to upload an image to Midjourney and run it with a keyword. Perhaps have a list of keywords to choose from, or run the whole list.
-// - fix issue with modify theme, prompts, and options not returning to the main menu
-// - add suggestions when modifying prompts, themes, and options
-// - clear screen and redraw intro when the mj.main process starts
+/*
+@TODO: 
+- add question to each mode to ask if you want to save the quad files
+- add question to each mode to ask if the user wants to save any files or just run the bot
+- add question to each mode to ask if you want to use a custom folder and sequential naming
+- add feature to upload an image to Midjourney and run it with a keyword. Perhaps have a list 
+    of keywords to choose from, or run the whole list.
+- fix issue with modify theme, prompts, and options not returning to the main menu
+- add suggestions when modifying prompts, themes, and options
+- clear screen and redraw intro when the mj.main process starts
+- Need to add logic to determine if token is valid and if not do login process
+- Once we start running a job, if the upscaler is still running when all the jobs finish, 
+    wait for the upscaler to finish before going back to the main menu
+
+*/
+
 
 // Import necessary libraries and modules
 import { MidjourneyDiscordBridge } from "midjourney-discord-bridge"; // Importing the 'MidjourneyDiscordBridge' class from a package.
