@@ -18,11 +18,11 @@ import chalk from 'chalk'; // Importing 'chalk' for terminal text styling.
 import figlet from 'figlet'; // Importing 'figlet' for creating ASCII art text.
 import stringifyObject from 'stringify-object'; // Importing a module for converting objects to strings.
 import Discordie from "discordie"; // Importing the 'Discordie' library for Discord bot functionality.
-import express from "express"; // Importing the 'express' library for creating a web server.
+// import express from "express"; // Importing the 'express' library for creating a web server.
 import Upscaler from 'ai-upscale-module'; // Importing the 'Upscaler' class from a package.
 import EXIF from 'exiftool-js-read-write';
 import puppeteer from 'puppeteer';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 
 console.log("Starting Midjourney Discord Bot...");
 let experimentalChatPromptEnabled = true;
@@ -72,17 +72,6 @@ let exifTool = new EXIF((...data) => {
     if (exifToolLoggingEnabled) MJLogger_exifTool({ ...data });
 });
 
-// console.log("load tag data: ", await exifTool.loadTagDataJson());
-
-// these are the ways to set exif data. can also send a collection of strings. e.g. "-all=","-json"
-// let args1 = ["-all=","-json"]; // Works
-// let args2 = {document: "things", comment: "test"}; // Works
-// let args3 = [{document: "things"},{ comment: "test"}]; // Does not work
-// exifTool.setExifData("output/A_beautifully_lit_Halloween_themed_tech_fair_showcasing__4bd15940-abb8-418c-bfce-777f8bc70613.png",false, true, args2).then((res) => {console.log("res47: ", res);}).catch((err) => {console.log("err47: ", err);});
-// await waitSeconds(3005);
-
-
-
 // Define a destination path for the upscaled images to be used later
 const upscaleDest = "output/upscaled/";
 
@@ -101,7 +90,7 @@ class MJ_imgInfo {
         //     body: JSON.stringify({ jobIds: ["\""+this.uuid+"\""] }),
         // });
         // this.imageData = await jobStatusResponse.json();
-        
+
         this.imageDataIsSet = true;
     }
 }
@@ -384,7 +373,7 @@ class MJ_Handler {
                     break;
                 }
                 let MJ_imgInfoObj = new MJ_imgInfo(img.uuid.value);
-                
+
                 this.logger("Initial Midjourney image generation completed");
 
                 // save the quad files
@@ -509,38 +498,40 @@ class MJ_Handler {
             } catch (err) {
                 console.log(err);
             }
+            await waitSeconds(1);
             // get image from the url and store it in response as an arraybuffer
-            const response = await axios.get(img.url, { responseType: 'arraybuffer' });
-
-            // if the filename is empty, try to parse it from the url
-            if (filename == "") {
-                // get the UUID from the url
-                const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
-                const regex = new RegExp(regexString);
-                const matches = regex.exec(img.url);
-                // if the UUID is not null, use it as the filename
-                try {
-                    filename = matches[0];
-                } catch (e) {
-                    // if we couldn't parse the filename, we'll use another method that ends up incorporating the Discord username
-                    filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
+            axios.get(img.url, { responseType: 'arraybuffer' }).then(async (response) => {
+                // if the filename is empty, try to parse it from the url
+                if (filename == "") {
+                    // get the UUID from the url
+                    const regexString = "([A-Za-z]+(_[A-Za-z]+)+).*([A-Za-z0-9]+(-[A-Za-z0-9]+)+)";
+                    const regex = new RegExp(regexString);
+                    const matches = regex.exec(img.url);
+                    // if the UUID is not null, use it as the filename
+                    try {
+                        filename = matches[0];
+                    } catch (e) {
+                        // if we couldn't parse the filename, we'll use another method that ends up incorporating the Discord username
+                        filename = img.url.substring(img.url.lastIndexOf("/") + 1, img.url.lastIndexOf("."));
+                    }
                 }
-            }
-            // send the data to sharp and save it as a png
-            await sharp(response.data).toFile("output/" + filename + '.png');
-            this.logger("Image saved to " + "output/" + filename + '.png');
-            //await waitSeconds(1);
-            // if aiUpscale is true, run the AI upscale on the image
-            if (upscaleImg) {
-                // filepath of the output image
-                let file = "output/" + filename + '.png';
-                // run the AI upscale on the image sending it the filepath and the destination folder
-                // the destination folder is derived from the filepath by removing the filename and adding "upscaled/"
-                upscaler.upscale(file, file.substring(0, file.lastIndexOf("/")) + "/upscaled/").then(async () => { // async so that we can await the waitSeconds function making sure we see the log message
-                    this.logger("Upscale job started for image: " + upscaleDest + filename + '.jpg');
+                // send the data to sharp and save it as a png
+                sharp(response.data).toFile("output/" + filename + '.png').then(async () => {
+                    this.logger("Image saved to " + "output/" + filename + '.png');
+                    //await waitSeconds(1);
+                    // if aiUpscale is true, run the AI upscale on the image
+                    if (upscaleImg) {
+                        // filepath of the output image
+                        let file = "output/" + filename + '.png';
+                        // run the AI upscale on the image sending it the filepath and the destination folder
+                        // the destination folder is derived from the filepath by removing the filename and adding "upscaled/"
+                        upscaler.upscale(file, file.substring(0, file.lastIndexOf("/")) + "/upscaled/").then(async () => { // async so that we can await the waitSeconds function making sure we see the log message
+                            this.logger("Upscale job started for image: " + upscaleDest + filename + '.jpg');
+                        });
+                    }
                 });
-            }
-            resolve("output/" + filename + '.png');
+                resolve("output/" + filename + '.png');
+            }).catch((err) => { console.log(err); });
         });
     }
 }
@@ -554,95 +545,97 @@ try {
     process.exit(1);
 }
 
-if(userConfig.openai_key == null || userConfig.openai_key == undefined) {
+if (userConfig.openai_key == null || userConfig.openai_key == undefined) {
     console.log("Error: openai_key is not set in user.json. Please set it and try again.");
     process.exit(1);
 }
-if(userConfig.CLIENT_ID == null || userConfig.CLIENT_ID == undefined || userConfig.CLIENT_SECRET == null || userConfig.CLIENT_SECRET == undefined) {
+if (userConfig.CLIENT_ID == null || userConfig.CLIENT_ID == undefined || userConfig.CLIENT_SECRET == null || userConfig.CLIENT_SECRET == undefined) {
     doLoginEnabled = false;
 }
-if(userConfig.max_ChatGPT_Responses == null || userConfig.max_ChatGPT_Responses == undefined) {
+if (userConfig.max_ChatGPT_Responses == null || userConfig.max_ChatGPT_Responses == undefined) {
     userConfig.max_ChatGPT_Responses = 25;
 }
-if(userConfig.wait_time_after_done == null || userConfig.wait_time_after_done == undefined) {
+if (userConfig.wait_time_after_done == null || userConfig.wait_time_after_done == undefined) {
     userConfig.wait_time_after_done = 10;
 }
-if(userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined) {
+if (userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined) {
     userConfig.relaxedEnabled = false;
 }
 
-// create an instance of express for the login process
-const app = express();
-
 // doLogin handles the login process when a token isn't provided in user.json
 const doLogin = async () => {
-    
-    if(doLoginEnabled == false) {
-        console.log("Error: CLIENT_ID and CLIENT_SECRET are not set in user.json. Please set them and try again.");
-        process.exit(1);
-    }
-    console.log("Log in to Discord using browser:");
-    console.log("Browser extension \"Run Javascript\" is required to get the token from the browser.");
-    console.log("https://chrome.google.com/webstore/detail/run-javascript/lmilalhkkdhfieeienjbiicclobibjao");
-    console.log("Paste the code below into the extension and enable it.");
-    console.log("token = localStorage.getItem(\"token\")\;\ntoken = token.replaceAll(\"\\\"\", \"\")\;\ntheUrl = \"http://localhost:9999/api/token=\" + token\;\nwindow.open(theUrl,'_blank');\n");
-
-    // set up a timeout for the login process
-    let notLoggedIn = true;
-    let loginTimeout = setTimeout(() => {
-        console.log("Login timed out. Please try again.");
-        process.exit();
-    }, 5 * 60 * 1000);
-
-
     let newToken = "";
-    // set up the express server
-    app.get("/login", (request, response) => {
-        // redirect to the discord oauth2 page
-        const redirect_url = `https://discord.com/oauth2/authorize?response_type=code&client_id=${userConfig.CLIENT_ID}&scope=identify&state=123456&redirect_uri=${userConfig.REDIRECT_URI}&prompt=consent`
-        response.redirect(redirect_url);
-    })
+    console.log("Logging in to Discord using headless browser...")
+    const browser = await puppeteer.launch({ headless: false, timeout: 60000 });
+    const page = await browser.newPage();
 
-    // handle the callback from discord oauth2
-    app.get("/api/callback", async (request, response) => {
-        const code = request.query["code"]
-        const resp = await axios.post('https://discord.com/api/oauth2/token',
-            new URLSearchParams({
-                'client_id': userConfig.CLIENT_ID,
-                'client_secret': userConfig.CLIENT_SECRET,
-                'grant_type': 'authorization_code',
-                'redirect_uri': "http://localhost:9999/api/callback",
-                'code': code
-            }),
-            {
-                headers:
-                {
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                }
-            })
-        response.send("You may close this window now.<script>window.close();</script>");
-    })
+    page.on('request', async (request) => {
+        const headers = request.headers();
+        if (headers['authorization'] != undefined) {
+            newToken = headers['authorization'];
+            console.log(headers['authorization']);
+        }
+        if (headers['Authorization'] != undefined) {
+            newToken = headers['authorization'];
+            console.log(headers['authorization']);
+        }
+    });
 
-    // start the express server
-    app.listen(9999, () => {
-        console.log("Browse to http://localhost:9999/login");
-    })
+    // Navigate the page to a URL
+    await page.goto('https://discord.com/login', { waitUntil: 'networkidle2', timeout: 60000 });
 
-    // handle the token GET request from the browser extension
-    app.get("/api/token=*", async (request, response) => {
-        console.log("token request");
-        console.log(request.url);
-        newToken = request.url.substring(11);
-        // respond with just enough javascript to close the window that opens
-        response.send("<script>window.close();</script>");
-        notLoggedIn = false;
-        loginTimeout.unref();
-    })
+    // Set screen size
+    await page.setViewport({ width: 1080, height: 1024 });
+    let email = await input({ message: 'What is your email?' }); // andrewmcan@gmail.com
+    let password = await input({ message: 'What is your password?', type: 'password' }); // uFwUaN5pgVWwBqV
+    email = "andrewmcdan@gmail.com";
+    password = "uFwUaN5pgVWwBqV";
 
-    // wait for the token to be received
-    while (notLoggedIn) {
-        await waitSeconds(1);
+
+    for (let i = 0; i < email.length; i++) {
+        await page.type('input[name="email"]', email.charAt(i));
+        // wait a random amount fo time between 0.5 and 1 seconds
+        await waitSeconds(Math.random() * (0.1) + 0.5);
     }
+    //await page.type('input[name="email"]', "andrewmcan@gmail.com");
+    await page.keyboard.press('Tab');
+    for (let i = 0; i < password.length; i++) {
+        await page.type('input[name="password"]', password.charAt(i));
+        // wait a random amount fo time between 0.5 and 1 seconds
+        await waitSeconds(Math.random() * (0.1) + 0.5);
+    }
+    //await page.type('input[name="password"]', "uFwUaN5pgVWwBqV");
+
+    await Promise.all([
+        page.click('button[type="submit"]'),
+        waitSeconds(10)
+    ]);
+
+    let htmlContent = await page.content(); // returns the html content of page
+    const $ = cheerio.load(htmlContent);
+
+    let h1 = $('form').find('div').find('h1').text();
+    console.log(h1);
+    if (h1 == "Multi-Factor Authentication") {
+        let mfaCode = await input({ message: 'What is your MFA code?' });
+        await page.type('input[placeholder="6-digit authentication code"]', mfaCode);
+        await Promise.all([
+            page.click('button[type="submit"]'),
+            waitSeconds(1)
+        ]);
+    }
+    await page.goto('https://discord.com/channels/@me', { waitUntil: 'networkidle2', timeout: 60000 });
+    let waitCount = 0;
+    console.log("Waiting for token to be set...");
+    while (newToken == "") {
+        await waitSeconds(1);
+        waitCount++;
+        if (waitCount > 60) {
+            console.log("Error: Could not get token from login process. Please try again.");
+            process.exit(1);
+        }
+    }
+    await browser.close();
     // return the token
     return newToken;
 }
@@ -884,6 +877,8 @@ async function sendChatGPTPrompt(prompt) {
             }
         }).then((response) => {
             if (!cancelTheGPT) res = response; // set res to the response if the user hasn't pressed enter to cancel
+        }).catch((err) => {
+            console.log("ChatGPT error statusCode: ", err.statusCode);
         });
     // wait for the response or for the user to press enter to cancel
     while (res == null && !cancelTheGPT) {
