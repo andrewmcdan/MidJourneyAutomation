@@ -8,6 +8,7 @@
     "@inquirer/prompts": "^3.2.0",
     "adm-zip": "^0.5.10",
     "ai-upscale-module": "file:../AI-Upscale-Module/",
+    "axios": "^1.5.1",
     "chatgpt": "^5.2.5",
     "cheerio": "^1.0.0-rc.12",
     "discord-api-types": "^0.37.50",
@@ -18,7 +19,7 @@
     "figlet": "^1.6.0",
     "inquirer": "^9.2.11",
     "large-download": "file:../large-download/",
-    "midjourney-discord-bridge": "github:andrewmcdan/midjourney-discord-bridge",
+    "midjourney-discord-bridge": "file:../midjourney-discord-bridge/",
     "puppeteer": "^21.4.0",
     "sharp": "^0.32.6",
     "stringify-object": "^5.0.0"

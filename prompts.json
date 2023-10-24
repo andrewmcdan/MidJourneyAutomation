@@ -198,6 +198,72 @@
         "eerie"
       ],
       "style": "hyperreal"
+    },
+    {
+      "keywords": [
+        "space western",
+        "skulls",
+        "photography",
+        "cybernetics",
+        "robots"
+      ],
+      "style": "hyperreal"
+    },
+    {
+      "keywords": [
+        "cyborg prototype",
+        "cybernetics",
+        "robots",
+        "robotics",
+        "demons",
+        "demon robots",
+        "demon animals",
+        "viking demons",
+        "high contrast",
+        "vivid color",
+        "ink drawing or cartoon or cel shaded",
+        "ukiyo",
+        "moebius",
+        "dan mumford",
+        "space",
+        "cityscpaes",
+        "landscapes",
+        "portraits",
+        "characters",
+        "horror",
+        "lovecraftian or h.r. giger",
+        "intricate detail"
+      ],
+      "style": "hyperreal"
+    },
+    {
+      "keywords": [
+        "robots",
+        "cyborgs",
+        "horror",
+        "lovecraftian",
+        "high contrast",
+        "landscapes",
+        "abstract"
+      ],
+      "style": "cel shaded"
+    },
+    {
+      "keywords": [
+        "abstract",
+        "real",
+        "cartoon",
+        "technology",
+        "nature",
+        "landscape",
+        "cityscape",
+        "demon animals",
+        "vikings",
+        "robots",
+        "cyborgs",
+        "horror"
+      ],
+      "style": "weird"
     }
   ],
   "prompts": [
