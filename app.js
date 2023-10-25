@@ -503,7 +503,7 @@ class MJ_Handler {
                         // get the image from the queue
                         let img = x4_upscaleQueue.shift();
                         // run the zoom out function on the image and save it
-                        let x4_upscaledImg = await mj.x4_upscale(img, 4, img.prompt);
+                        let x4_upscaledImg = await mj.x4_upscale(img, img.prompt);
                         if (x4_upscaledImg == null) break;
                         let MJ_imgInfoObj = new MJ_imgInfo(x4_upscaledImg.uuid.value);
                         if(x4_upscales.save) {
@@ -988,10 +988,9 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     const regex2 = /(\.\")|(\.\\\")|([a-z]\"[^\:])/gi;
     let highestValue = 0;
     if(chatResponse != null){
-        chatResponse = chatResponse.replace(regex, ` $& `);
-        
+        chatResponse = chatResponse.replace(regex, `$& `); // makes sure the value is followed by a space
+        // we're going to find all the matches and make sure the values are far enough apart i.e. ::30 ::35 is too close together, so we'll multiply the second value by 2
         const matches = chatResponse.match(regex);
-        
         if(matches != null){
             matches.forEach((m) => {
                 // get the index where the match starts
@@ -1009,19 +1008,19 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                 // console.log({nextValue});
                 if(nextValue != null){
                     if(nextValue > highestValue) highestValue = nextValue;
-                    // if the values are too close together, multiply the second value by 2.5
+                    // if the values are too close together, multiply the second value by 2
                     const ratio = value / nextValue;
                     const percentageDifference = Math.abs((ratio - 2) / 2) * 100;
                     if(percentageDifference < 80){
                         if(value < nextValue){
-                            // console.log("Values are too close together. Multiplying second value by 2.5");
-                            nextValue = Math.abs(Math.floor(nextValue * 2.5));
+                            // console.log("Values are too close together. Multiplying second value by 2");
+                            nextValue = Math.abs(Math.floor(nextValue * 2));
                             if(nextValue > highestValue) highestValue = nextValue;
                             // replace the next match with the new value
                             chatResponse = chatResponse.replace(nextMatch, "::"+nextValue);
                         }else{
-                            // console.log("Values are too close together. Multiplying first value by 2.5");
-                            value = Math.abs(Math.floor(value * 2.5));
+                            // console.log("Values are too close together. Multiplying first value by 2");
+                            value = Math.abs(Math.floor(value * 2));
                             if(value > highestValue) highestValue = value;
                             // replace the match with the new value
                             chatResponse = chatResponse.replace(m, "::"+value+" ");
@@ -1031,7 +1030,7 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                 }
             });
         }
-        chatResponse = chatResponse.replace(regex2, ` ::${highestValue} $&`);
+        chatResponse = chatResponse.replace(regex2, ` ::${highestValue} $&`); // append the highest value to the end of the prompt
     }
 
     try{
