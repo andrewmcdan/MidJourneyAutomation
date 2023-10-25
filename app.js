@@ -357,8 +357,15 @@ class MJ_Handler {
     // maxZooms: the max number of times to run the zoom loop
     // printInfo: whether to print the Midjourney info to the console
     // aiUpscale: whether to run an additional AI upscale on the images
-    main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false, saveUpscales = true, saveQuads = true) {
+    main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false, saveUpscales = true, saveQuads = true, x4_upscales = null) {
         return new Promise(async (resolve, reject) => {
+            if(x4_upscales == null) {
+                x4_upscales = {};
+                x4_upscales.enabled = false;
+                x4_upscales.max = 0;
+                x4_upscales.save = false;
+                x4_upscales.aiUpscale = false;
+            }
             this.runningProcess = true;
             maxZooms = maxZooms * 4; // zooms are 4x faster than upscales and variations
             // get the Midjourney instance
@@ -403,14 +410,16 @@ class MJ_Handler {
                 let variationQueue = [];
                 variationQueue.push(img);
                 let zoomQueue = [];
+                let x4_upscaleQueue = [];
                 // init the max counts
                 let maxUpscalesCount = 0;
                 let maxVariationsCount = 0;
                 let maxZoomsCount = 0;
-                let loop = [true, true, true];
+                let maxX4_upscalesCount = 0;
+                let loop = [true, true, true, true];
 
                 // loop as long as there are images in the queue and we haven't reached the max number of generations
-                while (loop[0] || loop[1] || loop[2]) {
+                while (loop[0] || loop[1] || loop[2] || loop[3]) {
                     if (!this.breakout()) {
                         resolve();
                         break; // Exit the loop if breakout() returns false
@@ -436,6 +445,7 @@ class MJ_Handler {
                                 break; // Exit the loop if breakout() returns false
                             }
                             zoomQueue.push(upscaledImg);
+                            if(x4_upscales.enabled) x4_upscaleQueue.push(upscaledImg);
                         }
                         // increment the max upscales count
                         maxUpscalesCount++;
@@ -489,10 +499,28 @@ class MJ_Handler {
                         // increment the max zooms count
                         maxZoomsCount++;
                     }
+                    while(x4_upscaleQueue.length > 0 && maxX4_upscalesCount < x4_upscales.max && x4_upscales.enabled) {
+                        // get the image from the queue
+                        let img = x4_upscaleQueue.shift();
+                        // run the zoom out function on the image and save it
+                        let x4_upscaledImg = await mj.x4_upscale(img, 4, img.prompt);
+                        if (x4_upscaledImg == null) break;
+                        let MJ_imgInfoObj = new MJ_imgInfo(x4_upscaledImg.uuid.value);
+                        if(x4_upscales.save) {
+                            this.makeFileFromIMGobj(x4_upscaledImg, "", x4_upscales.aiUpscale).then(async (res) => {
+                                this.writeEXIFdataToPNG(res, MJ_imgInfoObj);
+                            });
+                        }
+                        if (!this.breakout()) {
+                            resolve();
+                            break; // Exit the loop if breakout() returns false
+                        }
+                    }
                     // check if we should continue looping
                     loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
                     loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
                     loop[2] = zoomQueue.length > 0 && maxZoomsCount < maxZooms;
+                    loop[3] = x4_upscaleQueue.length > 0 && maxX4_upscalesCount < x4_upscales.max && x4_upscales.enabled;
                 }
                 // increment the max generations count
                 maxGenerationsCount++;
@@ -946,20 +974,33 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += " An example prompt would look like this: \"An abstract interpretation of a half-real, half-cartoon robot, ::60 exploring a techno landscape with neon ferns ::30 and silicon trees ::75, amidst a viking settlement ::80 bathed in twilight hues ::42. Art style: photograph.\" ";
     chatPrompt += " Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
+    if(!fs.existsSync("chatResponse.txt")){
+        fs.writeFileSync("chatResponse.txt", chatResponse);
+    }else{
+        fs.appendFileSync("chatResponse.txt", chatResponse);
+    }
+
+    chatResponse = chatResponse.replace('```json', "");
+    chatResponse = chatResponse.replace('```', "");
+    
     // regex to match 
     const regex = /::(0|[1-9]|[1-9][0-9]|[1-9][0-9]{2}|[1-9][0-9][0-9]|[1-9][0-9][0-9]{3})\b/g;
-    
+    const regex2 = /(\.\")|(\.\\\")|([a-z]\"[^\:])/gi;
+    let highestValue = 0;
     if(chatResponse != null){
-        chatResponse.replace(regex, ` $& `);
+        chatResponse = chatResponse.replace(regex, ` $& `);
+        
         const matches = chatResponse.match(regex);
+        
         if(matches != null){
             matches.forEach((m) => {
                 // get the index where the match starts
                 let index = chatResponse.indexOf(m);
                 // get the value from the match
                 let value = m.substring(2);
+                if(value > highestValue) highestValue = value;
                 // console.log({value});
-                // get the next match if it isnt null
+                // get the next match if it isn't null
                 let nextMatch = matches[matches.indexOf(m) + 1];
                 // console.log({nextMatch});
                 // get the value of the next match if it isnt null
@@ -967,18 +1008,21 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                 if(nextMatch != null) nextValue = nextMatch.substring(2);
                 // console.log({nextValue});
                 if(nextValue != null){
+                    if(nextValue > highestValue) highestValue = nextValue;
                     // if the values are too close together, multiply the second value by 2.5
                     const ratio = value / nextValue;
                     const percentageDifference = Math.abs((ratio - 2) / 2) * 100;
                     if(percentageDifference < 80){
                         if(value < nextValue){
-                            console.log("Values are too close together. Multiplying second value by 2.5");
+                            // console.log("Values are too close together. Multiplying second value by 2.5");
                             nextValue = Math.abs(Math.floor(nextValue * 2.5));
+                            if(nextValue > highestValue) highestValue = nextValue;
                             // replace the next match with the new value
                             chatResponse = chatResponse.replace(nextMatch, "::"+nextValue);
                         }else{
-                            console.log("Values are too close together. Multiplying first value by 2.5");
+                            // console.log("Values are too close together. Multiplying first value by 2.5");
                             value = Math.abs(Math.floor(value * 2.5));
+                            if(value > highestValue) highestValue = value;
                             // replace the match with the new value
                             chatResponse = chatResponse.replace(m, "::"+value+" ");
                         }
@@ -987,6 +1031,7 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                 }
             });
         }
+        chatResponse = chatResponse.replace(regex2, ` ::${highestValue} $&`);
     }
 
     try{
@@ -1028,7 +1073,7 @@ async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
             try {
                 JSON.parse(chatResponse).prompts.forEach((p,i) => {
                     prompts.push(p);
-                    console.log(i+": " +p);
+                    console.log((i+1)+": " +p);
                 });
             } catch (e) {
                 console.log("Error parsing prompts: ", e);
@@ -1882,7 +1927,13 @@ async function run() {
                             intro();
                             console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                             // run the main function
-                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, saveUpscalesAnswer, saveQuadsAnswer);
+                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, saveUpscalesAnswer, saveQuadsAnswer,
+                            {
+                                enabled: true,
+                                max: 1,
+                                save: true,
+                                aiUpscale: true
+                            });
                             if (i < promptCount - 1) {
                                 printRunComplete();
                                 console.log("Pausing for a bit between runs...");
