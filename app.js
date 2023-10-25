@@ -359,7 +359,7 @@ class MJ_Handler {
     // aiUpscale: whether to run an additional AI upscale on the images
     main(MJprompt, maxGenerations = 100, maxUpscales = 4, maxVariations = 4, maxZooms = 4, printInfo = false, aiUpscale = false, saveUpscales = true, saveQuads = true, x4_upscales = null) {
         return new Promise(async (resolve, reject) => {
-            if(x4_upscales == null) {
+            if (x4_upscales == null) {
                 x4_upscales = {};
                 x4_upscales.enabled = false;
                 x4_upscales.max = 0;
@@ -445,7 +445,7 @@ class MJ_Handler {
                                 break; // Exit the loop if breakout() returns false
                             }
                             zoomQueue.push(upscaledImg);
-                            if(x4_upscales.enabled) x4_upscaleQueue.push(upscaledImg);
+                            if (x4_upscales.enabled) x4_upscaleQueue.push(upscaledImg);
                         }
                         // increment the max upscales count
                         maxUpscalesCount++;
@@ -499,14 +499,14 @@ class MJ_Handler {
                         // increment the max zooms count
                         maxZoomsCount++;
                     }
-                    while(x4_upscaleQueue.length > 0 && maxX4_upscalesCount < x4_upscales.max && x4_upscales.enabled) {
+                    while (x4_upscaleQueue.length > 0 && maxX4_upscalesCount < x4_upscales.max && x4_upscales.enabled) {
                         // get the image from the queue
                         let img = x4_upscaleQueue.shift();
                         // run the zoom out function on the image and save it
                         let x4_upscaledImg = await mj.x4_upscale(img, img.prompt);
                         if (x4_upscaledImg == null) break;
                         let MJ_imgInfoObj = new MJ_imgInfo(x4_upscaledImg.uuid.value);
-                        if(x4_upscales.save) {
+                        if (x4_upscales.save) {
                             this.makeFileFromIMGobj(x4_upscaledImg, "", x4_upscales.aiUpscale).then(async (res) => {
                                 this.writeEXIFdataToPNG(res, MJ_imgInfoObj);
                             });
@@ -902,7 +902,12 @@ async function sendChatGPTPrompt(prompt) {
     const chatgpt = new ChatGPTAPI({
         apiKey: userConfig.openai_key,
         completionParams: {
-            model: 'gpt-4',
+            /**
+             * You can think of tokens as pieces of words, where 1,000 tokens is about 750 words.
+             */
+            model: 'gpt-4', // in: $0.03 / 1K tokens	out: $0.06 / 1K tokens
+            // model: 'gpt-4-32k', // in: $0.06 / 1K tokens     out: $0.12 / 1K tokens
+            // model: 'gpt-3.5-turbo-16k', // in: $0.003 / 1K tokens	out: $0.004 / 1K tokens
             temperature: 1.5,
             top_p: 0.8
         }
@@ -911,7 +916,7 @@ async function sendChatGPTPrompt(prompt) {
     let cancelTheGPT = false;
     // cancellation is a promise that will be resolved when the user presses enter to cancel the GPT.
     // This is used to cancel the prompt is the user never presses enter.
-    let cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheGPT = true; });
+    let cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheGPT = true; }).catch(() => { console.log("cancellation confirm rejected"); });
     // res is the response from chatgpt
     let res = null;
     // count is used to print a dot every 2 seconds to show that the GPT is still running
@@ -935,25 +940,28 @@ async function sendChatGPTPrompt(prompt) {
             console.log("ChatGPT error statusCode: ", err.statusCode);
         }).finally(() => {
             console.log();
-            if (typeof cancellation.cancel == "function") {
-                // cancel the cancellation promise
-                cancellation.cancel();
-            }
+            cancellation.cancel();
+            // if (typeof cancellation.cancel == "function") {
+            //     // cancel the cancellation promise
+            //     cancellation.cancel();
+            // }
         });
     // wait for the response or for the user to press enter to cancel
     while (res == null && !cancelTheGPT) {
         await waitSeconds(1);
     }
-    if (typeof cancellation.cancel == "function") {
-        // cancel the cancellation promise
-        cancellation.cancel();
-    }
+    cancellation.cancel();
+    // if (typeof cancellation.cancel == "function") {
+    //     // cancel the cancellation promise
+    //     cancellation.cancel();
+    // }
     if (cancelTheGPT) {
         console.log("Prompt cancelled");
         await waitSeconds(1);
         return null;
     }
     chatGPTmostRecentResId = res.id;
+    if(res === null) return null;
     return res.text;
 }
 
@@ -969,73 +977,79 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += ". The selected style is: ";
     chatPrompt += theme.style;
     chatPrompt += ".";
-    chatPrompt += " If contrasting words or themes appear in the keyword / phrases list, break each prompt into parts and append \" ::value \" to the end of each part where \"value\" is a value between 1 and 200. Note the space before the \"::\". Do not immediately follow the \" ::value\" with punctuation. Select that value based on how you want to weight the importance of two parts of the prompt. "; 
+    chatPrompt += " If contrasting words or themes appear in the keyword / phrases list, break each prompt into parts and append \" ::value \" to the end of each part where \"value\" is a value between 1 and 200. Note the space before the \"::\". Do not immediately follow the \" ::value\" with punctuation. Select that value based on how you want to weight the importance of two parts of the prompt. ";
     chatPrompt += " Try to impart a little randomness into that value. Break the prompt into a number of parts that is congruent with the number of contrasting themes. Include as many contrasting themes as your prompt can handle.";
     chatPrompt += " An example prompt would look like this: \"An abstract interpretation of a half-real, half-cartoon robot, ::60 exploring a techno landscape with neon ferns ::30 and silicon trees ::75, amidst a viking settlement ::80 bathed in twilight hues ::42. Art style: photograph.\" ";
     chatPrompt += " Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
-    if(!fs.existsSync("chatResponse.txt")){
+    if (!fs.existsSync("chatResponse.txt")) {
         fs.writeFileSync("chatResponse.txt", chatResponse);
-    }else{
+    } else {
         fs.appendFileSync("chatResponse.txt", chatResponse);
     }
 
     chatResponse = chatResponse.replace('```json', "");
     chatResponse = chatResponse.replace('```', "");
-    
+
     // regex to match 
     const regex = /::(0|[1-9]|[1-9][0-9]|[1-9][0-9]{2}|[1-9][0-9][0-9]|[1-9][0-9][0-9]{3})\b/g;
     const regex2 = /(\.\")|(\.\\\")|([a-z]\"[^\:])/gi;
     let highestValue = 0;
-    if(chatResponse != null){
+    if (chatResponse != null) {
         chatResponse = chatResponse.replace(regex, `$& `); // makes sure the value is followed by a space
         // we're going to find all the matches and make sure the values are far enough apart i.e. ::30 ::35 is too close together, so we'll multiply the second value by 2
         const matches = chatResponse.match(regex);
-        if(matches != null){
+        if (matches != null) {
             matches.forEach((m) => {
                 // get the index where the match starts
                 let index = chatResponse.indexOf(m);
                 // get the value from the match
                 let value = m.substring(2);
-                if(value > highestValue) highestValue = value;
+                if (value > highestValue) highestValue = value;
                 // console.log({value});
                 // get the next match if it isn't null
                 let nextMatch = matches[matches.indexOf(m) + 1];
                 // console.log({nextMatch});
                 // get the value of the next match if it isnt null
                 let nextValue = null;
-                if(nextMatch != null) nextValue = nextMatch.substring(2);
+                if (nextMatch != null) nextValue = nextMatch.substring(2);
                 // console.log({nextValue});
-                if(nextValue != null){
-                    if(nextValue > highestValue) highestValue = nextValue;
+                if (nextValue != null) {
+                    if (nextValue > highestValue) highestValue = nextValue;
                     // if the values are too close together, multiply the second value by 2
                     const ratio = value / nextValue;
                     const percentageDifference = Math.abs((ratio - 2) / 2) * 100;
-                    if(percentageDifference < 80){
-                        if(value < nextValue){
+                    if (percentageDifference < 80) {
+                        if (value < nextValue) {
                             // console.log("Values are too close together. Multiplying second value by 2");
                             nextValue = Math.abs(Math.floor(nextValue * 2));
-                            if(nextValue > highestValue) highestValue = nextValue;
+                            if (nextValue > highestValue) highestValue = nextValue;
                             // replace the next match with the new value
-                            chatResponse = chatResponse.replace(nextMatch, "::"+nextValue);
-                        }else{
+                            chatResponse = chatResponse.replace(nextMatch, "::" + nextValue);
+                        } else {
                             // console.log("Values are too close together. Multiplying first value by 2");
                             value = Math.abs(Math.floor(value * 2));
-                            if(value > highestValue) highestValue = value;
+                            if (value > highestValue) highestValue = value;
                             // replace the match with the new value
-                            chatResponse = chatResponse.replace(m, "::"+value+" ");
+                            chatResponse = chatResponse.replace(m, "::" + value + " ");
                         }
                     }
-                    
+
                 }
             });
         }
-        chatResponse = chatResponse.replace(regex2, ` ::${highestValue} $&`); // append the highest value to the end of the prompt
+        const matchReplacer = (match, offset, str) => {
+            let returnString = match.substring(0, 1);
+            returnString += " ::" + highestValue + " ";
+            returnString += match.substring(1);
+            return returnString;
+        }
+        chatResponse = chatResponse.replace(regex2, matchReplacer); // append the highest value to the end of the prompt
     }
 
-    try{
+    try {
         chatResponsesArr.push(JSON.parse(chatResponse));
-    }catch(e){
+    } catch (e) {
         console.log("Error parsing chatResponse: ", e);
     }
     try {
@@ -1066,13 +1080,13 @@ async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
         }
         console.log("Running chatGPT job " + (i + 1) + " of " + batchJobCount + "... Generating " + thisRunCount + " prompts.");
         let chatResponse = await generatePromptFromThemKeywords(theme, thisRunCount);
-        
+
         // console.log({ chatResponse });
         if (chatResponse != null) {
             try {
-                JSON.parse(chatResponse).prompts.forEach((p,i) => {
+                JSON.parse(chatResponse).prompts.forEach((p, i) => {
                     prompts.push(p);
-                    console.log((i+1)+": " +p);
+                    // console.log((i + 1) + ": " + p);
                 });
             } catch (e) {
                 console.log("Error parsing prompts: ", e);
@@ -1210,14 +1224,17 @@ const printMainMenu = () => {
     console.log(chalk.white("1. Show loaded themes, prompts, and options"));
     console.log(chalk.white("2. Modify prompts"));
     console.log(chalk.white("3. Modify themes"));
-    console.log(chalk.white("4. Modify options (applies to all generations)"));
-    console.log(chalk.white("5. Start thematic generation from saved theme"));
-    console.log(chalk.white("6. Start thematic generation from questions"));
-    console.log(chalk.white("7. Start prompt generation from saved prompt"));
-    console.log(chalk.white("8. Start prompt generation from questions"));
-    console.log(chalk.white("9. Start prompt generation from last questions"));
-    console.log(chalk.white("10. Start infinite zoom"));
-    console.log(chalk.white("11. Start infinite variation upscales from prompt"));
+    console.log(chalk.white("4. Modify keyword lists"));
+    console.log(chalk.white("5. Modify options (applies to all generations)"));
+    console.log(chalk.white("6. Start thematic generation from saved theme"));
+    console.log(chalk.white("7. Start thematic generation from questions"));
+    console.log(chalk.white("8. Start prompt generation from saved prompt"));
+    console.log(chalk.white("9. Start prompt generation from questions"));
+    console.log(chalk.white("10. Start prompt generation from last questions"));
+    console.log(chalk.white("11. Start infinite zoom"));
+    console.log(chalk.white("12. Start infinite variation upscales from prompt"));
+    console.log(chalk.white("13. Run commands on a job UUID"));
+    console.log(chalk.white("14. Start generation based on keyword list (run prompt / file against all the keywords in a list)"));
     console.log(chalk.white("0. Exit"));
 }
 
@@ -1595,7 +1612,7 @@ async function run() {
                 break;
             case "4":  // modify options
                 clearScreenBelowIntro();
-                console.log("Modify options (applies to all generations)");
+                console.log("Modify MJ options (applies to all generations)");
                 let modifyOptionsMenuOption = "";
                 while (modifyOptionsMenuOption != "0") {
                     printPromptsFile("options");
@@ -1669,7 +1686,10 @@ async function run() {
                     }
                 }
                 break;
-            case "5":  // start thematic generation from saved theme
+            case "5":  // modify keyword lists
+            
+            break;
+            case "6":  // start thematic generation from saved theme
                 clearScreenBelowIntro();
                 console.log("Start thematic generation from saved theme");
                 // print the themes
@@ -1729,7 +1749,7 @@ async function run() {
                 aiUpscale = basicAnswers.AIUPSCALE;
                 runnerGo = true;
                 break;
-            case "6": // start thematic generation from questions
+            case "7": // start thematic generation from questions
                 clearScreenBelowIntro();
                 console.log("Start thematic generation from questions");
                 // ask theme questions
@@ -1785,7 +1805,7 @@ async function run() {
                 aiUpscale = themeQuestions.AIUPSCALE;
                 runnerGo = true;
                 break;
-            case "7": // start prompt generation from saved prompt
+            case "8": // start prompt generation from saved prompt
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from saved prompt");
                 // print the prompts
@@ -1810,7 +1830,7 @@ async function run() {
                 aiUpscale = basicAnswers.AIUPSCALE;
                 runnerGo = true;
                 break;
-            case "8": // start prompt generation from questions
+            case "9": // start prompt generation from questions
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from questions");
                 // ask prompt questions
@@ -1826,12 +1846,12 @@ async function run() {
                 aiUpscale = promptQuestions.AIUPSCALE;
                 runnerGo = true;
                 break;
-            case "9": // start prompt generation from last questions
+            case "10": // start prompt generation from last questions
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from last questions");
                 runnerGo = true;
                 break;
-            case "10": // start infinite zoom
+            case "11": // start infinite zoom
                 clearScreenBelowIntro();
                 console.log("Start infinite zoom");
                 let infiniteZoomQuestions = await askInfiniteQuestions();
@@ -1854,7 +1874,7 @@ async function run() {
                 promptAnswer.length = 0;
                 runnerGo = true;
                 break;
-            case "11":
+            case "12": // start infinite variation upscales from prompt
                 clearScreenBelowIntro();
                 console.log("Start infinite variation upscales from prompt");
                 let infinitePromptQuestions = await askInfiniteQuestions();
@@ -1877,12 +1897,31 @@ async function run() {
                 promptAnswer.length = 0;
                 runnerGo = true;
                 break;
-            case "12":
+            case "13": // run commands on an image UUID
                 clearScreenBelowIntro();
                 console.log("Run commands on an image UUID");
-                let uuid = await input({ message: 'What is the image UUID?' });
+                let uuid = await input({ message: 'What is the image / job UUID?' });
                 // need to figure out how to get the available commands for the particular uuid
-                
+
+                // commands that could be run:
+                // 1. if the image is a quad, call for upscale of 1, 2, 3, or 4
+                // 2. if the image is a quad, call for variation of 1, 2, 3, or 4
+                // 3. if the image is a quad, call for a vairation on the prompt
+                // 4. if the image is an upscale call for a weak variation
+                // 5. if the image is an upscale call for a strong variation
+                // 6. if the image is an upscale call for a 1.5x zoom
+                // 7. if the image is an upscale call for a 2x zoom
+                // 8. if the image is an upscale call for a 4x zoom
+                // 9. if the image is an upscale download / save and local AI upscale
+
+                break;
+            case "14": // start geneation based on keyword list
+                // ask for which keyword list to run against
+                // ask for how many times to run each combination
+                // ask basic questions (save, local upscaling, save quads, etc)
+                // ask what to run the list against (prompt or file)
+                // if prompt, ask for prompt
+                // if file, ask for file
                 break;
             case "0":
                 clearScreenBelowIntro();
@@ -1927,12 +1966,12 @@ async function run() {
                             console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                             // run the main function
                             await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, saveUpscalesAnswer, saveQuadsAnswer,
-                            {
-                                enabled: true,
-                                max: 1,
-                                save: true,
-                                aiUpscale: true
-                            });
+                                {
+                                    enabled: true,
+                                    max: 1,
+                                    save: true,
+                                    aiUpscale: true
+                                });
                             if (i < promptCount - 1) {
                                 printRunComplete();
                                 console.log("Pausing for a bit between runs...");
@@ -1972,11 +2011,11 @@ async function run() {
                     midjourney.killProcess();
                 }
             }
-             
+
             // wait for upscaler to finish
-            if(upscaler.getNumberOfRunningJobs() > 0 || upscaler.getNumberOfWaitingJobs() > 0) {
+            if (upscaler.getNumberOfRunningJobs() > 0 || upscaler.getNumberOfWaitingJobs() > 0) {
                 console.log("Waiting for upscaler to finish...");
-                while(upscaler.getNumberOfRunningJobs() > 0 || upscaler.getNumberOfWaitingJobs() > 0) {
+                while (upscaler.getNumberOfRunningJobs() > 0 || upscaler.getNumberOfWaitingJobs() > 0) {
                     await waitSeconds(0.5);
                     let dots = ".".repeat(loopCount);
                     MJLogger_runner("Number of running upscale jobs: " + upscaler.getNumberOfRunningJobs() + "\nNumber of waiting upscale jobs: " + upscaler.getNumberOfWaitingJobs() + "\n" + dots);
