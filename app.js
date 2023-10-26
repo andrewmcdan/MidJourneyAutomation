@@ -34,35 +34,6 @@ import EXIF from 'exiftool-js-read-write';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 
-// let res = await fetch("https://discord.com/api/v9/interactions", {
-//   "headers": {
-//     "accept": "*/*",
-//     "accept-language": "en-US,en;q=0.9",
-//     "authorization": "MTc0Mjk1MzkwMDY4Mjc3MjQ4.Gy-2bd.lEzCS7re-z-mnbea_NeqG6heXhQiUt6vjTO2Vg",
-//     "content-type": "multipart/form-data; boundary=----WebKitFormBoundaryIPW2cigrElYuyyFm",
-// //     "sec-ch-ua": "\"Chromium\";v=\"118\", \"Google Chrome\";v=\"118\", \"Not=A?Brand\";v=\"99\"",
-// //    "sec-ch-ua-mobile": "?0",
-// //    "sec-ch-ua-platform": "\"Windows\"",
-// //    "sec-fetch-dest": "empty",
-// //    "sec-fetch-mode": "cors",
-// //    "sec-fetch-site": "same-origin",
-// //     "x-debug-options": "bugReporterEnabled",
-// //     "x-discord-locale": "en-US",
-// //    "x-discord-timezone": "America/New_York",
-// //     "x-super-properties": "eyJvcyI6IldpbmRvd3MiLCJicm93c2VyIjoiQ2hyb21lIiwiZGV2aWNlIjoiIiwiYnJvd3Nlcl91c2VyX2FnZW50IjoiTW96aWxsYS81LjAgKFdpbmRvd3MgTlQgMTAuMDsgV2luNjQ7IHg2NCkgQXBwbGVXZWJLaXQvNTM3LjM2IChLSFRNTCwgbGlrZSBHZWNrbykgQ2hyb21lLzExOC4wLjAuMCBTYWZhcmkvNTM3LjM2IiwiYnJvd3Nlcl92ZXJzaW9uIjoiMTE4LjAuMC4wIiwib3NfdmVyc2lvbiI6IjEwIiwicmVmZXJyZXIiOiJodHRwczovL3d3dy5yZWRkaXQuY29tLyIsInJlZmVycmluZ19kb21haW4iOiJ3d3cucmVkZGl0LmNvbSIsInJlZmVycmVyX2N1cnJlbnQiOiIiLCJyZWZlcnJpbmdfZG9tYWluX2N1cnJlbnQiOiIiLCJyZWxlYXNlX2NoYW5uZWwiOiJzdGFibGUiLCJjbGllbnRfYnVpbGRfbnVtYmVyIjoyMzg2NDEsImNsaWVudF9ldmVudF9zb3VyY2UiOm51bGx9",
-// //     "cookie": "__dcfduid=88bda660446511eea0e4772bf7244562; __sdcfduid=88bda661446511eea0e4772bf7244562e7b2c17a3f944fe79dc0850966064c71ab84bdc84d13798aad56c2c20860f8e8; locale=en-US; _gcl_au=1.1.958013532.1694463636; _ga=GA1.1.239527716.1694463636; _ga_Q149DFWHT7=GS1.1.1697727480.4.0.1697727482.0.0.0; OptanonConsent=isIABGlobal=false&datestamp=Thu+Oct+19+2023+17%3A34%3A21+GMT-0400+(Eastern+Daylight+Time)&version=6.33.0&hosts=&landingPath=https%3A%2F%2Fdiscord.com%2F&groups=C0001%3A1%2CC0002%3A1%2CC0003%3A1; cf_clearance=4mBBkMB7OXnhR0fNtWUuUjbeyCSKALAMoO5mN0hHayQ-1698249043-0-1-e1a9dc1f.96e76b22.b7d06228-0.2.1698249043; __cfruid=54ebe36377af07838fcc136ae5fd4ad9fdc20123-1698264965; _cfuvid=eiapShg6CQwKV3CL2A5KkddBYAuZtmyE7dlVqBZo7Zw-1698264965118-0-604800000",
-// //     "Referer": "https://discord.com/channels/1159893559839830087/1159893716543225896",
-// //     "Referrer-Policy": "strict-origin-when-cross-origin"
-//   },
-//   "body": "------WebKitFormBoundaryIPW2cigrElYuyyFm\r\nContent-Disposition: form-data; name=\"payload_json\"\r\n\r\n{\"type\":2,\"application_id\":\"936929561302675456\",\"guild_id\":\"1159893559839830087\",\"channel_id\":\"1159893716543225896\",\"session_id\":\"35421e1fbb2a63bcba982596ff4ff6da\",\"data\":{\"version\":\"1166847114203123799\",\"id\":\"972289487818334209\",\"name\":\"info\",\"type\":1,\"options\":[],\"application_command\":{\"id\":\"972289487818334209\",\"application_id\":\"936929561302675456\",\"version\":\"1166847114203123799\",\"default_member_permissions\":null,\"type\":1,\"nsfw\":false,\"name\":\"info\",\"description\":\"View information about your profile.\",\"dm_permission\":true,\"contexts\":null,\"integration_types\":[0]},\"attachments\":[]},\"nonce\":\"1166884226105081856\"}\r\n------WebKitFormBoundaryIPW2cigrElYuyyFm--\r\n",
-//   "method": "POST"
-// });
-// let resString = await res;
-// console.log(JSON.stringify(resString, null, 2));
-// console.log(JSON.stringify(res, null, 2));
-// console.log("Done");
-// await waitSeconds(50);
-
 console.log("Starting Midjourney Discord Bot...");
 let experimentalChatPromptEnabled = true;
 let exifToolLoggingEnabled = false;
@@ -643,7 +614,7 @@ if (userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined)
 const doLogin = async () => {
     let newToken = "";
     console.log("Logging in to Discord using headless browser...")
-    const browser = await puppeteer.launch({ headless: false, timeout: 60000 });
+    const browser = await puppeteer.launch({ headless: "new", timeout: 60000 });
     const page = await browser.newPage();
 
     page.on('request', async (request) => {
@@ -663,10 +634,8 @@ const doLogin = async () => {
 
     // Set screen size
     await page.setViewport({ width: 1080, height: 1024 });
-    let email = await input({ message: 'What is your email?' }); // andrewmcan@gmail.com
-    let password = await input({ message: 'What is your password?', type: 'password' }); // uFwUaN5pgVWwBqV
-    email = "andrewmcdan@gmail.com";
-    password = "uFwUaN5pgVWwBqV";
+    let email = await input({ message: 'What is your email?' });
+    let password = await input({ message: 'What is your password?', type: 'password' });
 
 
     for (let i = 0; i < email.length; i++) {
@@ -674,18 +643,16 @@ const doLogin = async () => {
         // wait a random amount fo time between 0.5 and 1 seconds
         await waitSeconds(Math.random() * (0.1) + 0.5);
     }
-    //await page.type('input[name="email"]', "andrewmcan@gmail.com");
+
     await page.keyboard.press('Tab');
     for (let i = 0; i < password.length; i++) {
         await page.type('input[name="password"]', password.charAt(i));
         // wait a random amount fo time between 0.5 and 1 seconds
         await waitSeconds(Math.random() * (0.1) + 0.5);
     }
-    //await page.type('input[name="password"]', "uFwUaN5pgVWwBqV");
 
     await Promise.all([
-        page.click('button[type="submit"]'),
-        waitSeconds(10)
+        page.click('button[type="submit"]').then(async()=>{await waitSeconds(2);})
     ]);
 
     let htmlContent = await page.content(); // returns the html content of page
