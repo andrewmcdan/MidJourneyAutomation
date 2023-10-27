@@ -113,6 +113,7 @@ class MJ_imgInfo {
 }
 
 class MJ_Handler {
+    
     constructor(config) {
         // initialize the config and check for required values. Throw an error if any are missing.
         if (config == null || config == undefined) throw new Error("Configuration must be provided");
@@ -176,13 +177,17 @@ class MJ_Handler {
 
     }
 
-    // run an infinite zoom 
-    // MJprompt: the prompt to send to Midjourney
-    // saveQuadFiles: whether to save the quad files
-    // autoNameFiles: whether to automatically name using a counter or to use the name from the prompt / url
-    // folder: the folder name to save the files to. defaults to output
-    // aiUpscale: whether to run an additional AI upscale on the images
     async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false, saveUpscales = true) {
+        /**
+         * Run an infinite zoom loop, calling for a random upscale and then a zoom out
+         * @param {string} MJprompt - The prompt to send to Midjourney
+         * @param {boolean} saveQuadFiles - Whether to save the quad files
+         * @param {boolean} autoNameFiles - Whether to automatically name using a counter or to use the name from the prompt / url
+         * @param {string} folder - The folder name to save the files to. defaults to output
+         * @param {boolean} aiUpscale - Whether to run an additional local AI upscaling on the images
+         * @param {boolean} saveUpscales - Whether to save the upscaled images
+         * @returns {Promise<void>}
+         */
         return new Promise(async (resolve, reject) => {
             // set the running process flag to true
             this.runningProcess = true;
