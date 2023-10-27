@@ -34,6 +34,11 @@ import EXIF from 'exiftool-js-read-write';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 
+try{
+    process.stdout.write(String.fromCharCode(27) + "]0;" + "Midjourney Automata - Discord Bot" + String.fromCharCode(7)); // Set the title of the terminal window to "Midjourney Automata - Discord Bot
+}catch(err){
+    console.log("Error setting terminal title: ", err);
+}
 console.log("Starting Midjourney Discord Bot...");
 let experimentalChatPromptEnabled = true;
 let exifToolLoggingEnabled = false;
@@ -188,7 +193,7 @@ class MJ_Handler {
                 // if the progress is not null, print it to the console
                 if (progress != null) {
                     // process.stdout.write(progress + "%  ");
-                    this.logger(progress + "%  ");
+                    this.logger(progress + "  ");
                 }
                 // check if the kill process was called and exit the loop if it was
                 this.breakout();
@@ -278,7 +283,7 @@ class MJ_Handler {
                 // if the progress is not null, print it to the console
                 if (progress != null) {
                     // process.stdout.write(progress + "%  ");
-                    this.logger(progress + "%  ");
+                    this.logger(progress + "  ");
                 }
                 // check if the kill process was called and exit the loop if it was
                 this.breakout();
@@ -332,7 +337,15 @@ class MJ_Handler {
                     }
                 }
                 // reroll the image and save it
-                imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt, this.breakout);
+                imgToUpscale = await this.mj.rerollImage(imgToUpscale, img.prompt, this.breakout, (obj, progress) => {
+                    // if the progress is not null, print it to the console
+                    if (progress != null) {
+                        // process.stdout.write(progress + "%  ");
+                        this.logger(progress + "  ");
+                    }
+                    // check if the kill process was called and exit the loop if it was
+                    this.breakout();
+                });
                 if (imgToUpscale == null) break;
                 if (!this.breakout()) {
                     resolve();
@@ -377,7 +390,7 @@ class MJ_Handler {
             if (printInfo) {
                 let info = await mj.getInfo();
                 // console.log("Midjourney info:\n\n", info.embeds[0].description);
-                this.logger("Midjourney info:\n\n" + info.embeds[0].description);
+                this.logger("\n\n\nMidjourney info:\n\n" + info.embeds[0].description);
             }
             // loop while the max generations count is less than the max generations
             while (maxGenerationsCount < maxGenerations) {
@@ -387,8 +400,13 @@ class MJ_Handler {
                 }
                 // send the prompt to Midjourney and wait for the response. img is an object holding the response
                 let img = await mj.generateImage(MJprompt, (obj, progress) => {
-                    //process.stdout.write(progress + "%  ");
-                    this.logger(progress + "%  ");
+                    // if the progress is not null, print it to the console
+                    if (progress != null) {
+                        // process.stdout.write(progress + "%  ");
+                        this.logger(progress + "  ");
+                    }
+                    // check if the kill process was called and exit the loop if it was
+                    this.breakout();
                 });
                 if (img == null) break;
                 if (!this.breakout()) {
@@ -457,7 +475,15 @@ class MJ_Handler {
                         let img = variationQueue.shift();
                         for (let i = 1; i <= 4; i++) {
                             // Run the variation function on the image based on the loop counter 'i'
-                            let variationImg = await mj.variation(img, i, img.prompt);
+                            let variationImg = await mj.variation(img, i, img.prompt, (obj, progress) => {
+                                // if the progress is not null, print it to the console
+                                if (progress != null) {
+                                    // process.stdout.write(progress + "%  ");
+                                    this.logger(progress + "  ");
+                                }
+                                // check if the kill process was called and exit the loop if it was
+                                this.breakout();
+                            });
                             if (variationImg == null) break;
                             let MJ_imgInfoObj = new MJ_imgInfo(variationImg.uuid.value);
                             if (saveQuads) {
@@ -481,7 +507,15 @@ class MJ_Handler {
                         // get the image from the queue
                         let img = zoomQueue.shift();
                         // run the zoom out function on the image and save it
-                        let zoomedImg = await mj.zoomOut(img, img.prompt);
+                        let zoomedImg = await mj.zoomOut(img, img.prompt, (obj, progress) => {
+                            // if the progress is not null, print it to the console
+                            if (progress != null) {
+                                // process.stdout.write(progress + "%  ");
+                                this.logger(progress + "  ");
+                            }
+                            // check if the kill process was called and exit the loop if it was
+                            this.breakout();
+                        });
                         if (zoomedImg == null) break;
                         let MJ_imgInfoObj = new MJ_imgInfo(zoomedImg.uuid.value);
                         if (saveQuads) {
@@ -504,7 +538,15 @@ class MJ_Handler {
                         // get the image from the queue
                         let img = x4_upscaleQueue.shift();
                         // run the zoom out function on the image and save it
-                        let x4_upscaledImg = await mj.x4_upscale(img, img.prompt);
+                        let x4_upscaledImg = await mj.x4_upscale(img, img.prompt, (obj, progress) => {
+                            // if the progress is not null, print it to the console
+                            if (progress != null) {
+                                // process.stdout.write(progress + "%  ");
+                                this.logger(progress + "  ");
+                            }
+                            // check if the kill process was called and exit the loop if it was
+                            this.breakout();
+                        });
                         if (x4_upscaledImg == null) break;
                         let MJ_imgInfoObj = new MJ_imgInfo(x4_upscaledImg.uuid.value);
                         if (x4_upscales.save) {
@@ -614,7 +656,7 @@ if (userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined)
 const doLogin = async () => {
     let newToken = "";
     console.log("Logging in to Discord using headless browser...")
-    const browser = await puppeteer.launch({ headless: "new", timeout: 60000 });
+    const browser = await puppeteer.launch({ headless: false, timeout: 60000 });
     const page = await browser.newPage();
 
     page.on('request', async (request) => {
@@ -634,6 +676,13 @@ const doLogin = async () => {
 
     // Set screen size
     await page.setViewport({ width: 1080, height: 1024 });
+
+    let selectFound = false;
+    while (!selectFound) {
+        page.click('input[name="email"]').then(() => { selectFound = true; }).catch(() => { selectFound = false; });
+        await waitSeconds(1);
+    }
+
     let email = await input({ message: 'What is your email?' });
     let password = await input({ message: 'What is your password?', type: 'password' });
 
@@ -652,7 +701,7 @@ const doLogin = async () => {
     }
 
     await Promise.all([
-        page.click('button[type="submit"]').then(async()=>{await waitSeconds(2);})
+        page.click('button[type="submit"]').then(async () => { await waitSeconds(2); })
     ]);
 
     let htmlContent = await page.content(); // returns the html content of page
@@ -826,9 +875,83 @@ async function MJlogger(msg) {
     }
 }
 
+function findSpecialStringsAndReplace(str) {
+    const calcRelTime = (date1, date2) => {
+        const msPerMinute = 60 * 1000;
+        const msPerHour = msPerMinute * 60;
+        const msPerDay = msPerHour * 24;
+        const msPerMonth = msPerDay * 30; // Approximation
+        const msPerYear = msPerDay * 365;
+
+        let diff = Math.abs(date1 - date2);
+
+        if (diff < msPerMinute) {
+            return `${Math.round(diff / 1000)} seconds ago`;
+        } else if (diff < msPerHour) {
+            return `${Math.round(diff / msPerMinute)} minutes ago`;
+        } else if (diff < msPerDay) {
+            return `${Math.round(diff / msPerHour)} hours ago`;
+        } else if (diff < msPerMonth) {
+            return `${Math.round(diff / msPerDay)} days ago`;
+        } else if (diff < msPerYear) {
+            return `${Math.round(diff / msPerMonth)} months ago`;
+        } else {
+            return `${Math.round(diff / msPerYear)} years ago`;
+        }
+    }
+    let regex = /<@!([0-9]+)>/g;
+    let matches = str.match(regex);
+    if (matches != null) {
+        matches.forEach((m) => {
+            let id = m.substring(3, m.length - 1);
+            let user = DiscordClient.Users.get(id);
+            str = str.replace(m, "@" + user.username);
+        });
+    }
+
+    regex = /<t:([0-9]+):R>/g;
+    matches = str.match(regex);
+    if (matches != null) {
+        matches.forEach((m) => {
+            let time = m.substring(3, m.length - 3);
+            let date = new Date(time * 1000)
+            str = str.replace(m, calcRelTime(date, new Date()));
+        });
+    }
+
+    regex = /<t:([0-9]+)>/g;
+    matches = str.match(regex);
+    if (matches != null) {
+        matches.forEach((m) => {
+            let time = m.substring(3, m.length - 1);
+            let date = new Date(time * 1000)
+            str = str.replace(m, date.toLocaleString());
+        });
+    }
+
+    regex = /🚀/g;
+    matches = str.match(regex);
+    if(matches != null) {
+        matches.forEach((m) => {
+            str = str.replace(m, "!RocketShip!");
+        });
+    }
+
+    regex = /<#([0-9]+)>/g;
+    matches = str.match(regex);
+    if(matches != null) {
+        matches.forEach((m) => {
+            let id = m.substring(2, m.length - 1);
+            let channel = DiscordClient.Channels.get(id);
+            str = str.replace(m, "#" + channel.name);
+        });
+    }
+    return str;
+}
+
 // print a message to the console in a location relative to the current cursor position
 function printToLineRelative(line, text) {
-
+    text = findSpecialStringsAndReplace(text);
     //get line count
     let textLines = text.split("\n");
     let lineCount = textLines.length;
@@ -958,7 +1081,7 @@ async function sendChatGPTPrompt(prompt) {
         return null;
     }
     chatGPTmostRecentResId = res.id;
-    if(res === null) return null;
+    if (res === null) return null;
     return res.text;
 }
 
@@ -979,7 +1102,7 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += " An example prompt would look like this: \"An abstract interpretation of a half-real, half-cartoon robot, ::60 exploring a techno landscape with neon ferns ::30 and silicon trees ::75, amidst a viking settlement ::80 bathed in twilight hues ::42. Art style: photograph.\" ";
     chatPrompt += " Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
-    if(chatResponse == null) return null;
+    if (chatResponse == null) return null;
     if (!fs.existsSync("chatResponse.txt")) {
         fs.writeFileSync("chatResponse.txt", chatResponse);
     } else {
@@ -1214,6 +1337,14 @@ const printPromptsFile = (choice = "all") => {
             });
         }
     }
+    if(choice == "keywords" || choice == "all") {
+        if (prompts.keyword_lists != null) {
+            console.log(chalk.yellowBright("Loaded keywords: "));
+            prompts.keyword_lists.forEach((keyword, i) => {
+                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(keyword)));
+            });
+        }
+    }
 }
 
 const printMainMenu = () => {
@@ -1378,7 +1509,7 @@ const askImageGenQuestions = async () => {
     }
     res.GENERATIONS = await input({ message: questionMessages.GENERATIONS, default: "1" });
     res.UPSCALE = await input({ message: questionMessages.UPSCALE, default: "4" });
-    if(res.UPSCALE> 0) res.MJx4UPSCALE = await confirm({ message: questionMessages.MJUPSCALE });
+    if (res.UPSCALE > 0) res.MJx4UPSCALE = await confirm({ message: questionMessages.MJUPSCALE });
     else res.MJx4UPSCALE = false;
     res.SAVEUPSCALES = await confirm({ message: questionMessages.SAVEUPSCALES });
     res.SAVEQUADS = await confirm({ message: questionMessages.SAVEQUADS });
@@ -1433,7 +1564,7 @@ async function run() {
     let saveUpscalesAnswer = false;
     let saveQuadsAnswer = false;
     let mjX4UpscaleAnswer = false;
-
+    let fileToUpload = null;
     let themeKeywords;
     let themeChoice;
     let basicAnswers;
@@ -1689,7 +1820,7 @@ async function run() {
                 break;
             case "5":  // modify keyword lists
 
-            break;
+                break;
             case "6":  // start thematic generation from saved theme
                 clearScreenBelowIntro();
                 console.log("Start thematic generation from saved theme");
@@ -1918,12 +2049,76 @@ async function run() {
 
                 break;
             case "14": // start geneation based on keyword list
+                clearScreenBelowIntro();
+                console.log("Start geneation based on keyword list");
+
                 // ask for which keyword list to run against
+                let keywordListNames = [];
+                prompts.keyword_lists.forEach(list => {
+                    let name = "";
+                    for(let list_i = 0; list_i < (list.length<3?list.length:3); list_i++) {
+                        name += list[list_i] + ",";
+                    }
+                    name = name.substring(0, name.length - 1);
+                    keywordListNames.push({name: name, value: name});
+                });
+                let keywordListAnswer = await select({ message: 'Which keyword list?', choices: keywordListNames });
+                let listIndex = 0;
+                for(let list_i = 0; list_i < keywordListNames.length; list_i++) {
+                    if(keywordListNames[list_i].value == keywordListAnswer) listIndex = list_i;
+                }
+                let keywordListArray = prompts.keyword_lists[listIndex];
+
                 // ask for how many times to run each combination
+                let runCount = await input({ message: 'How many times to run each combination?', default: "1" });
+
                 // ask basic questions (save, local upscaling, save quads, etc)
+                let saveQuads = await confirm({ message: 'Save quads?', default: "y" });
+                let callForUpscales = await confirm({ message: 'Call for upscales?', default: "y" });
+                let saveUpscales = await confirm({ message: 'Save upscales?', default: "y" });
+                let localUpscale = await confirm({ message: 'Run local AI upscale?', default: "y" });
+                let callForx4Upscales = await confirm({ message: 'Call for x4 upscales?', default: "y" });
+
                 // ask what to run the list against (prompt or file)
-                // if prompt, ask for prompt
-                // if file, ask for file
+                let whatToRunAgainst = await select({ message: 'What to run the list against?', choices: [{name:"Custom prompt",value:"custom"},{name:"Saved Prompt", value:"saved"}, {name:"File",value:"file"}] });
+                let prompt = "";
+                // if prompt, ask if load prompt or type prompt
+                if(whatToRunAgainst == "custom") {
+                    prompt = await input({ message: 'What is the prompt?' });
+                }else if(whatToRunAgainst == "saved") {
+                    // print the prompts
+                    printPromptsFile("prompts");
+                    // ask for the prompt number
+                    let promptChoice2 = await askMenuOption((value) => {
+                        value = parseInt(value);
+                        if (value >= 0 <= prompts.prompts.length) return true;
+                        else return false;
+                    });
+                    // set the prompt answer
+                    prompt = prompts.prompts[parseInt(promptChoice2) - 1];
+                }else if(whatToRunAgainst == "file") {
+                    // if file, ask for file
+                    let fileList = fs.readdirSync("./inputFiles");
+                    let file = await select({ message: 'Which file?', choices: fileList });
+                    // prompt = fs.readFileSync("./inputFiles/" + file, "binary");
+                }
+
+                promptAnswer = [];
+                keywordListArray.forEach(keyword => {
+                    if(prompt.indexOf(" --") == -1) promptAnswer.push(prompt + " " + keyword);
+                    else promptAnswer.push(prompt.substring(0, prompt.indexOf(" --")) + " " + keyword);
+                });
+
+                generationsAnswer = runCount;
+                upscaleAnswer = callForUpscales?"4":"0";
+                saveUpscalesAnswer = saveUpscales;
+                saveQuadsAnswer = saveQuads;
+                variationAnswer = 0;
+                zoomAnswer = 0
+                aiUpscale = localUpscale;
+                mjX4UpscaleAnswer = callForx4Upscales;
+                
+                runnerGo = true;
                 break;
             case "0":
                 clearScreenBelowIntro();
@@ -1968,13 +2163,13 @@ async function run() {
                             console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                             // run the main function
                             await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, saveUpscalesAnswer, saveQuadsAnswer,
-                                mjX4UpscaleAnswer?
-                                {
-                                    enabled: true,
-                                    max: 1,
-                                    save: true,
-                                    aiUpscale: true
-                                }:null);
+                                mjX4UpscaleAnswer ?
+                                    {
+                                        enabled: true,
+                                        max: 1,
+                                        save: true,
+                                        aiUpscale: true
+                                    } : null);
                             if (i < promptCount - 1) {
                                 printRunComplete();
                                 console.log("Pausing for a bit between runs...");
