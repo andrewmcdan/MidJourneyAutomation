@@ -113,7 +113,7 @@ class MJ_imgInfo {
 }
 
 class MJ_Handler {
-    
+
     constructor(config) {
         // initialize the config and check for required values. Throw an error if any are missing.
         if (config == null || config == undefined) throw new Error("Configuration must be provided");
@@ -395,7 +395,7 @@ class MJ_Handler {
             if (printInfo) {
                 let info = await mj.getInfo();
                 // console.log("Midjourney info:\n\n", info.embeds[0].description);
-                this.logger("\n\n\nMidjourney info:\n\n" + info.embeds[0].description);
+                this.logger("\n\n\nMidjourney info:\n\n" + info);
             }
             // loop while the max generations count is less than the max generations
             while (maxGenerationsCount < maxGenerations) {
