@@ -293,10 +293,8 @@
     }
   ],
   "keyword_lists": [
-    [
-      "robots",
-      "cyborgs"
-    ],
+    {"name":"robots and cyborgs","keywords":["robots","cyborgs"]},
+    {"name":"Drawing, Painting, etc Artists", "keywords":
     [
       "Aaron Douglas",
       "Aaron Horkey",
@@ -2352,6 +2350,6 @@
       "Adrian Frutiger",
       "Agostino Arrivabene",
       "Aldo Rossi"
-    ]
+    ]}
   ]
 }

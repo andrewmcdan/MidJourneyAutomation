@@ -14,6 +14,7 @@
     "discord-api-types": "^0.37.50",
     "discord.js": "^14.13.0",
     "discordie": "^0.11.0",
+    "discordimageuploader": "file:../discordimageuploader/",
     "exiftool-js-read-write": "file:../exiftool-js-read-write/",
     "express": "^4.18.2",
     "figlet": "^1.6.0",

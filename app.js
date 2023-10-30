@@ -33,6 +33,7 @@ import Upscaler from 'ai-upscale-module'; // Importing the 'Upscaler' class from
 import EXIF from 'exiftool-js-read-write';
 import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
+import DiscordImageUploader from "discordimageuploader";
 
 try{
     process.stdout.write(String.fromCharCode(27) + "]0;" + "Midjourney Automata - Discord Bot" + String.fromCharCode(7)); // Set the title of the terminal window to "Midjourney Automata - Discord Bot
@@ -42,6 +43,11 @@ try{
 console.log("Starting Midjourney Discord Bot...");
 let experimentalChatPromptEnabled = true;
 let exifToolLoggingEnabled = false;
+
+/**
+ * @type {DiscordImageUploader}
+ */
+let discordUploader = null;
 
 let doLoginEnabled = true;
 
@@ -661,7 +667,7 @@ if (userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined)
 const doLogin = async () => {
     let newToken = "";
     console.log("Logging in to Discord using headless browser...")
-    const browser = await puppeteer.launch({ headless: false, timeout: 60000 });
+    const browser = await puppeteer.launch({ headless: "new", timeout: 60000 });
     const page = await browser.newPage();
 
     page.on('request', async (request) => {
@@ -836,6 +842,7 @@ async function setup() {
         guild_id: userConfig.guild_id,
         channel_id: userConfig.channel_id,
     });
+    discordUploader = new DiscordImageUploader(userConfig.token);
 
     // register the MJ logger callback
     midjourney.registerMJLoggerCB(MJlogger_MJbridge);
@@ -1345,8 +1352,8 @@ const printPromptsFile = (choice = "all") => {
     if(choice == "keywords" || choice == "all") {
         if (prompts.keyword_lists != null) {
             console.log(chalk.yellowBright("Loaded keywords: "));
-            prompts.keyword_lists.forEach((keyword, i) => {
-                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(keyword)));
+            prompts.keyword_lists.forEach((item, i) => {
+                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(item)));
             });
         }
     }
@@ -2060,11 +2067,7 @@ async function run() {
                 // ask for which keyword list to run against
                 let keywordListNames = [];
                 prompts.keyword_lists.forEach(list => {
-                    let name = "";
-                    for(let list_i = 0; list_i < (list.length<3?list.length:3); list_i++) {
-                        name += list[list_i] + ",";
-                    }
-                    name = name.substring(0, name.length - 1);
+                    let name = list.name;
                     keywordListNames.push({name: name, value: name});
                 });
                 let keywordListAnswer = await select({ message: 'Which keyword list?', choices: keywordListNames });
@@ -2072,7 +2075,7 @@ async function run() {
                 for(let list_i = 0; list_i < keywordListNames.length; list_i++) {
                     if(keywordListNames[list_i].value == keywordListAnswer) listIndex = list_i;
                 }
-                let keywordListArray = prompts.keyword_lists[listIndex];
+                let keywordListArray = prompts.keyword_lists[listIndex].keywords;
 
                 // ask for how many times to run each combination
                 let runCount = await input({ message: 'How many times to run each combination?', default: "1" });
@@ -2103,9 +2106,44 @@ async function run() {
                     prompt = prompts.prompts[parseInt(promptChoice2) - 1];
                 }else if(whatToRunAgainst == "file") {
                     // if file, ask for file
+                    if(!fs.existsSync("./inputFiles")) fs.mkdirSync("./inputFiles");
                     let fileList = fs.readdirSync("./inputFiles");
+                    fileList.forEach((file, i) => {
+                        fileList[i] = {name: file.substring(file.lastIndexOf("/")), value: file};
+                    });
                     let file = await select({ message: 'Which file?', choices: fileList });
-                    // prompt = fs.readFileSync("./inputFiles/" + file, "binary");
+                    file = "./inputFiles/" + file;
+                    console.log(file);
+                    let confirmUpload = await confirm({ message: 'Are you sure you want to upload this file?', default: "y" });
+                    let url = "";
+                    if(confirmUpload) {
+                        let jobInitObj = await discordUploader.uploadFile(file, userConfig.channel_id);
+                        jobInitObj.promise.then((res) => {
+                            console.log("Upload complete!");
+                            url = res;
+                        }).catch((e) => {
+                            console.log(e);
+                        });
+                        // wait for upload to complete
+                        let waitCount = 0;
+                        while(url == "") {
+                            waitCount++;
+                            process.stdout.write(".");
+                            if(waitCount > 10) break; // wait for 5 seconds max
+                            await waitSeconds(0.5);
+                        }
+
+                        // if the upload failed, use a random dog image instead
+                        if(url == ""){
+                            console.log("Upload failed! Using a random dog image instead.");
+                            let dog = await fetch('https://dog.ceo/api/breeds/image/random');
+                            let dogJson = await dog.json();
+                            url = dogJson.message;                            
+                        }
+                        prompt = url + " ";
+                    }else{
+                        break;
+                    }
                 }
 
                 promptAnswer = [];
