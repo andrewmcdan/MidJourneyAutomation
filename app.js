@@ -23,7 +23,7 @@ import axios from "axios"; // Importing the 'axios' library for making HTTP requ
 import sharp from 'sharp'; // Importing the 'sharp' library for image processing.
 import fs from 'fs'; // Importing the 'fs' library for file system operations.
 import { ChatGPTAPI } from 'chatgpt'; // Importing the 'ChatGPTAPI' class from a package.
-import { select, input, confirm } from '@inquirer/prompts'; // Importing functions for interactive command-line prompts.
+import { select, input, confirm, Separator } from '@inquirer/prompts'; // Importing functions for interactive command-line prompts.
 import chalk from 'chalk'; // Importing 'chalk' for terminal text styling.
 import figlet from 'figlet'; // Importing 'figlet' for creating ASCII art text.
 import stringifyObject from 'stringify-object'; // Importing a module for converting objects to strings.
@@ -35,9 +35,9 @@ import puppeteer from 'puppeteer';
 import * as cheerio from 'cheerio';
 import DiscordImageUploader from "discordimageuploader";
 
-try{
+try {
     process.stdout.write(String.fromCharCode(27) + "]0;" + "Midjourney Automata - Discord Bot" + String.fromCharCode(7)); // Set the title of the terminal window to "Midjourney Automata - Discord Bot
-}catch(err){
+} catch (err) {
     console.log("Error setting terminal title: ", err);
 }
 console.log("Starting Midjourney Discord Bot...");
@@ -127,7 +127,7 @@ class MJ_Handler {
         if (this.config.token == null || this.config.token == undefined) throw new Error("Token must be provided");
         if (this.config.guild_id == null || this.config.guild_id == undefined) throw new Error("Guild ID must be provided");
         if (this.config.channel_id == null || this.config.channel_id == undefined) throw new Error("Channel ID must be provided");
-        this.mj = new MidjourneyDiscordBridge(config.token, config.guild_id, config.channel_id, 15);
+        this.mj = new MidjourneyDiscordBridge(config.token, config.guild_id, config.channel_id, 20);
         this.runningProcess = false;
         this.killCalled = false;
     }
@@ -183,17 +183,17 @@ class MJ_Handler {
 
     }
 
+    /**
+     * Run an infinite zoom loop, calling for a random upscale and then a zoom out
+     * @param {string} MJprompt - The prompt to send to Midjourney
+     * @param {boolean} saveQuadFiles - Whether to save the quad files
+     * @param {boolean} autoNameFiles - Whether to automatically name using a counter or to use the name from the prompt / url
+     * @param {string} folder - The folder name to save the files to. defaults to output
+     * @param {boolean} aiUpscale - Whether to run an additional local AI upscaling on the images
+     * @param {boolean} saveUpscales - Whether to save the upscaled images
+     * @returns {Promise<void>} - Returns a promise that resolves when the function is killed
+     */
     async infiniteZoom(MJprompt, saveQuadFiles = true, autoNameFiles = false, folder = "", aiUpscale = false, saveUpscales = true) {
-        /**
-         * Run an infinite zoom loop, calling for a random upscale and then a zoom out
-         * @param {string} MJprompt - The prompt to send to Midjourney
-         * @param {boolean} saveQuadFiles - Whether to save the quad files
-         * @param {boolean} autoNameFiles - Whether to automatically name using a counter or to use the name from the prompt / url
-         * @param {string} folder - The folder name to save the files to. defaults to output
-         * @param {boolean} aiUpscale - Whether to run an additional local AI upscaling on the images
-         * @param {boolean} saveUpscales - Whether to save the upscaled images
-         * @returns {Promise<void>}
-         */
         return new Promise(async (resolve, reject) => {
             // set the running process flag to true
             this.runningProcess = true;
@@ -477,9 +477,12 @@ class MJ_Handler {
                             zoomQueue.push(upscaledImg);
                             if (x4_upscales.enabled) x4_upscaleQueue.push(upscaledImg);
                         }
-                        // increment the max upscales count
+                        // increment the max upscales count to keep track of how many upscales we've done
                         maxUpscalesCount++;
                     }
+                    // check to see if the upscale queue still has items and if the max upscales is reached. If so, clear the queue.
+                    let upscaleQueueStillHasItemsAndMaxUpscalesReached = upscaleQueue.length > 0 && maxUpscalesCount >= maxUpscales;
+                    if(upscaleQueueStillHasItemsAndMaxUpscalesReached) while(upscaleQueue.length > 0) upscaleQueue.shift();
                     // loop through the queues and run the appropriate function
                     while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
                         // get the image from the queue
@@ -513,6 +516,9 @@ class MJ_Handler {
                         }
                         maxVariationsCount++;
                     }
+                    // check to see if the variation queue still has items and if the max variations is reached. If so, clear the queue.
+                    let variationQueueStillHasItemsAndMaxVariationsReached = variationQueue.length > 0 && maxVariationsCount >= maxVariations;
+                    if(variationQueueStillHasItemsAndMaxVariationsReached) while(variationQueue.length > 0) variationQueue.shift();
                     // loop through the queues and run the appropriate function
                     while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
                         // get the image from the queue
@@ -545,6 +551,9 @@ class MJ_Handler {
                         // increment the max zooms count
                         maxZoomsCount++;
                     }
+                    // check to see if the zoom queue still has items and if the max zooms is reached. If so, clear the queue.
+                    let zoomQueueStillHasItemsAndMaxZoomsReached = zoomQueue.length > 0 && maxZoomsCount >= maxZooms;
+                    if(zoomQueueStillHasItemsAndMaxZoomsReached) while(zoomQueue.length > 0) zoomQueue.shift();
                     while (x4_upscaleQueue.length > 0 && maxX4_upscalesCount < x4_upscales.max && x4_upscales.enabled) {
                         // get the image from the queue
                         let img = x4_upscaleQueue.shift();
@@ -570,6 +579,9 @@ class MJ_Handler {
                             break; // Exit the loop if breakout() returns false
                         }
                     }
+                    // check to see if the x4 upscale queue still has items and if the max x4 upscales is reached. If so, clear the queue.
+                    let x4_upscaleQueueStillHasItemsAndMaxX4_upscalesReached = x4_upscaleQueue.length > 0 && maxX4_upscalesCount >= x4_upscales.max && x4_upscales.enabled;
+                    if(x4_upscaleQueueStillHasItemsAndMaxX4_upscalesReached) while(x4_upscaleQueue.length > 0) x4_upscaleQueue.shift();
                     // check if we should continue looping
                     loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
                     loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
@@ -682,11 +694,8 @@ const doLogin = async () => {
         }
     });
 
-    // Navigate the page to a URL
     await page.goto('https://discord.com/login', { waitUntil: 'networkidle2', timeout: 60000 });
-
-    // Set screen size
-    await page.setViewport({ width: 1080, height: 1024 });
+    await page.setViewport({ width: 1920, height: 1080 });
 
     let selectFound = false;
     while (!selectFound) {
@@ -697,18 +706,20 @@ const doLogin = async () => {
     let email = await input({ message: 'What is your email?' });
     let password = await input({ message: 'What is your password?', type: 'password' });
 
+    let typingRandomTimeMin = 0.1;
+    let typingRandomTimeMax = 0.3;
 
     for (let i = 0; i < email.length; i++) {
         await page.type('input[name="email"]', email.charAt(i));
-        // wait a random amount fo time between 0.5 and 1 seconds
-        await waitSeconds(Math.random() * (0.1) + 0.5);
+        let randomTime = Math.random() * (typingRandomTimeMin) + typingRandomTimeMax;
+        await waitSeconds(randomTime);
     }
 
     await page.keyboard.press('Tab');
     for (let i = 0; i < password.length; i++) {
         await page.type('input[name="password"]', password.charAt(i));
-        // wait a random amount fo time between 0.5 and 1 seconds
-        await waitSeconds(Math.random() * (0.1) + 0.5);
+        let randomTime = Math.random() * (typingRandomTimeMin) + typingRandomTimeMax;
+        await waitSeconds(randomTime);
     }
 
     await Promise.all([
@@ -740,11 +751,10 @@ const doLogin = async () => {
         }
     }
     await browser.close();
-    // return the token
     return newToken;
 }
 
-// set up discordie
+
 var DiscordEvents = Discordie.Events;
 var DiscordClient = new Discordie();
 var DiscordieReady = false;
@@ -797,7 +807,7 @@ async function setup() {
         await waitSeconds(1);
     }
 
-    // get list of guilds
+    // get list of guilds AKA servers
     let guilds = await DiscordClient.Guilds.toArray();
 
     let guildsObjArray = [];
@@ -834,14 +844,15 @@ async function setup() {
     // set the guild id and channel id
     userConfig.guild_id = guild.id;
     userConfig.channel_id = channel.id;
-    console.log("Shutting down Discordie client...");
-    await DiscordClient.disconnect();
+    // console.log("Shutting down Discordie client...");
+    // await DiscordClient.disconnect();
     // start the Midjourney instance
     midjourney = new MJ_Handler({
         token: userConfig.token,
         guild_id: userConfig.guild_id,
         channel_id: userConfig.channel_id,
     });
+    // start up the Discord image uploader
     discordUploader = new DiscordImageUploader(userConfig.token);
 
     // register the MJ logger callback
@@ -850,49 +861,48 @@ async function setup() {
 
 // Logging function designed to print to the console in a specific location so that it doesn't interfere with the prompts
 async function MJlogger(msg) {
-    if (MJloggerEnabled) {
-        if (msg.mj != null && msg.mj != undefined) {
-            printToLineRelative(3, "Midjourney log:\n" + msg.mj);
+    if (!MJloggerEnabled) return;
+    if (msg.mj != null && msg.mj != undefined) {
+        printToLineRelative(3, "Midjourney log:\n" + msg.mj);
+    }
+    if (msg.runner != null && msg.runner != undefined) {
+        printToLineRelative(1, "Runner log:\n" + msg.runner);
+    }
+    if (msg.exif_logger != null && msg.exif_logger != undefined) {
+        printToLineRelative(10, "ExifTool log:\n\r" + JSON.stringify(msg.exif_logger, null, 2));
+    }
+    for (let key in msg) {
+        if (msg[key].title == null || msg[key].title == undefined) continue;
+        if (msg[key].text != null && msg[key].text != undefined) continue;
+        if (msg[key].line == null || msg[key].line == undefined) continue;
+        let logTitle = msg[key].title;
+        let logText = msg[key].text;
+        let logLine = msg[key].line;
+        if (msg[key].jsonStringify != null && msg[key].jsonStringify != undefined) {
+            if (msg[key].jsonStringify) logText = JSON.stringify(logText, null, 2);
         }
-        if (msg.runner != null && msg.runner != undefined) {
-            printToLineRelative(1, "Runner log:\n" + msg.runner);
+        printToLineRelative(logLine, logTitle + ":\n" + logText);
+    }
+    if (msg.title != null && msg.title != undefined &&
+        msg.text != null && msg.text != undefined &&
+        msg.line != null && msg.line != undefined) {
+        let logTitle = msg.title;
+        let logText = msg.text;
+        let logLine = msg.line;
+        if (msg.jsonStringify !== null && msg.jsonStringify !== undefined) {
+            if (msg.jsonStringify) logText = JSON.stringify(logText, null, 2);
         }
-        if (msg.exif_logger != null && msg.exif_logger != undefined) {
-            printToLineRelative(10, "ExifTool log:\n\r" + JSON.stringify(msg.exif_logger, null, 2));
-        }
-        for (let key in msg) {
-            if (msg[key].title == null || msg[key].title == undefined) continue;
-            if (msg[key].text != null && msg[key].text != undefined) continue;
-            if (msg[key].line == null || msg[key].line == undefined) continue;
-            let logTitle = msg[key].title;
-            let logText = msg[key].text;
-            let logLine = msg[key].line;
-            if (msg[key].jsonStringify != null && msg[key].jsonStringify != undefined) {
-                if (msg[key].jsonStringify) logText = JSON.stringify(logText, null, 2);
-            }
-            printToLineRelative(logLine, logTitle + ":\n" + logText);
-        }
-        if (msg.title != null && msg.title != undefined &&
-            msg.text != null && msg.text != undefined &&
-            msg.line != null && msg.line != undefined) {
-            let logTitle = msg.title;
-            let logText = msg.text;
-            let logLine = msg.line;
-            if (msg.jsonStringify !== null && msg.jsonStringify !== undefined) {
-                if (msg.jsonStringify) logText = JSON.stringify(logText, null, 2);
-            }
-            if (typeof logText == "object") logText = JSON.stringify(logText, null, 2);
-            printToLineRelative(logLine, logTitle + ":\n" + logText);
-        }
+        if (typeof logText == "object") logText = JSON.stringify(logText, null, 2);
+        printToLineRelative(logLine, logTitle + ":\n" + logText);
     }
 }
 
 function findSpecialStringsAndReplace(str) {
-    const calcRelTime = (date1, date2) => {
+    const calcRelativeTime = (date1, date2) => {
         const msPerMinute = 60 * 1000;
         const msPerHour = msPerMinute * 60;
         const msPerDay = msPerHour * 24;
-        const msPerMonth = msPerDay * 30; // Approximation
+        const msPerMonth = msPerDay * (365 / 12);
         const msPerYear = msPerDay * 365;
 
         let diff = Math.abs(date1 - date2);
@@ -911,7 +921,8 @@ function findSpecialStringsAndReplace(str) {
             return `${Math.round(diff / msPerYear)} years ago`;
         }
     }
-    let regex = /<@!([0-9]+)>/g;
+
+    let regex = /<@!([0-9]+)>/g; // matches @user
     let matches = str.match(regex);
     if (matches != null) {
         matches.forEach((m) => {
@@ -921,17 +932,17 @@ function findSpecialStringsAndReplace(str) {
         });
     }
 
-    regex = /<t:([0-9]+):R>/g;
+    regex = /<t:([0-9]+):R>/g; // matches relative time stamp
     matches = str.match(regex);
     if (matches != null) {
         matches.forEach((m) => {
             let time = m.substring(3, m.length - 3);
             let date = new Date(time * 1000)
-            str = str.replace(m, calcRelTime(date, new Date()));
+            str = str.replace(m, calcRelativeTime(date, new Date()));
         });
     }
 
-    regex = /<t:([0-9]+)>/g;
+    regex = /<t:([0-9]+)>/g; // matches absolute time stamp
     matches = str.match(regex);
     if (matches != null) {
         matches.forEach((m) => {
@@ -941,17 +952,17 @@ function findSpecialStringsAndReplace(str) {
         });
     }
 
-    regex = /🚀/g;
+    regex = /🚀/g; // matches rocket ship
     matches = str.match(regex);
-    if(matches != null) {
+    if (matches != null) {
         matches.forEach((m) => {
             str = str.replace(m, "!RocketShip!");
         });
     }
 
-    regex = /<#([0-9]+)>/g;
+    regex = /<#([0-9]+)>/g; // matches #channel
     matches = str.match(regex);
-    if(matches != null) {
+    if (matches != null) {
         matches.forEach((m) => {
             let id = m.substring(2, m.length - 1);
             let channel = DiscordClient.Channels.get(id);
@@ -1060,7 +1071,7 @@ async function sendChatGPTPrompt(prompt) {
                 // every other time we get a partial response, print a dot
                 count++;
                 if (!cancelTheGPT) { // but only if the user hasn't pressed enter to cancel
-                    if (count % 2 == 0) {
+                    if (count % 3 == 0) {
                         process.stdout.write(".");
                     }
                 }
@@ -1071,8 +1082,6 @@ async function sendChatGPTPrompt(prompt) {
         }).catch((err) => {
             console.log("ChatGPT error statusCode: ", err.statusCode);
         }).finally(() => {
-            console.log("typeof cancellation.cancel: " + typeof cancellation.cancel);
-            // cancellation.reject();
             if (typeof cancellation.cancel == "function") {
                 // cancel the cancellation promise
                 cancellation.cancel();
@@ -1084,7 +1093,6 @@ async function sendChatGPTPrompt(prompt) {
     }
 
     if (typeof cancellation.cancel == "function") {
-        // cancel the cancellation promise
         cancellation.cancel();
     }
     if (cancelTheGPT) {
@@ -1125,8 +1133,8 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatResponse = chatResponse.replace('```', "");
 
     // regex to match 
-    const regex = /::(0|[1-9]|[1-9][0-9]|[1-9][0-9]{2}|[1-9][0-9][0-9]|[1-9][0-9][0-9]{3})\b/g;
-    const regex2 = /(\.\")|(\.\\\")|([a-z]\"[^\:])/gi;
+    const regex = /::(0|[1-9]|[1-9][0-9]|[1-9][0-9]{2}|[1-9][0-9][0-9]|[1-9][0-9][0-9]{3})\b/g; // matches ::value
+    const regex2 = /(\.\")|(\.\\\")|([a-z]\"[^\:])/gi; // matches .", .\" and a"b
     let highestValue = 0;
     if (chatResponse != null) {
         chatResponse = chatResponse.replace(regex, `$& `); // makes sure the value is followed by a space
@@ -1139,14 +1147,11 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                 // get the value from the match
                 let value = m.substring(2);
                 if (value > highestValue) highestValue = value;
-                // console.log({value});
                 // get the next match if it isn't null
                 let nextMatch = matches[matches.indexOf(m) + 1];
-                // console.log({nextMatch});
-                // get the value of the next match if it isnt null
+                // get the value of the next match if it isn't null
                 let nextValue = null;
                 if (nextMatch != null) nextValue = nextMatch.substring(2);
-                // console.log({nextValue});
                 if (nextValue != null) {
                     if (nextValue > highestValue) highestValue = nextValue;
                     // if the values are too close together, multiply the second value by 2
@@ -1154,20 +1159,17 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                     const percentageDifference = Math.abs((ratio - 2) / 2) * 100;
                     if (percentageDifference < 80) {
                         if (value < nextValue) {
-                            // console.log("Values are too close together. Multiplying second value by 2");
                             nextValue = Math.abs(Math.floor(nextValue * 2));
                             if (nextValue > highestValue) highestValue = nextValue;
                             // replace the next match with the new value
                             chatResponse = chatResponse.replace(nextMatch, "::" + nextValue);
                         } else {
-                            // console.log("Values are too close together. Multiplying first value by 2");
                             value = Math.abs(Math.floor(value * 2));
                             if (value > highestValue) highestValue = value;
                             // replace the match with the new value
                             chatResponse = chatResponse.replace(m, "::" + value + " ");
                         }
                     }
-
                 }
             });
         }
@@ -1214,21 +1216,17 @@ async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
         console.log("Running chatGPT job " + (i + 1) + " of " + batchJobCount + "... Generating " + thisRunCount + " prompts.");
         let chatResponse = await generatePromptFromThemKeywords(theme, thisRunCount);
 
-        // console.log({ chatResponse });
         if (chatResponse != null) {
             try {
-                JSON.parse(chatResponse).prompts.forEach((p, i) => {
-                    prompts.push(p);
-                    // console.log((i + 1) + ": " + p);
-                });
+                JSON.parse(chatResponse).prompts.forEach((p) => { prompts.push(p); });
             } catch (e) {
                 console.log("Error parsing prompts: ", e);
             }
         }
         if (i < batchJobCount - 1 && chatResponse != null) {
             console.log();
-            console.log("Waiting 2 seconds between OpenAI requests...");
-            await waitSeconds(2);
+            console.log("Waiting 5 seconds between OpenAI requests...");
+            await waitSeconds(5);
         }
     }
     console.log("Generated " + prompts.length + " prompts from theme: ", JSON.stringify(theme));
@@ -1242,7 +1240,7 @@ async function waitSeconds(count, cancelable = false) {
     return await new Promise((resolve) => {
         // if the wait is cancelable, set the confirmation promise to the promise returned by the confirm function
         if (cancelable) {
-            confirmation = confirm({ message: 'Waiting ' + count + ' seconds. Enter to cancel and return to menu.' }).then(() => {
+            confirmation = confirm({ message: 'Waiting ' + count + ' seconds. Enter to cancel.' }).then(() => {
                 // if the user presses enter, resolve the promise with true
                 resolve(true);
             });
@@ -1256,7 +1254,6 @@ async function waitSeconds(count, cancelable = false) {
 };
 
 const clearScreenBelowIntro = () => {
-    let screenWidth = process.stdout.columns;
     let screenHeight = process.stdout.rows;
     let introHeight = 22;
     process.stdout.cursorTo(0, introHeight);
@@ -1272,7 +1269,6 @@ const clearScreenBelowIntro = () => {
 const intro = () => {
     // clear the screen
     process.stdout.write('\x1B[2J\x1B[0f');
-    // print a solid line the width of the console
     console.log(chalk.greenBright('='.repeat(process.stdout.columns)));
     console.log(
         chalk.green(
@@ -1324,20 +1320,37 @@ const printRunComplete = () => {
     console.log();
 }
 
+const shortenObject = (obj, maxLength = 10) => {
+    let tempObj = JSON.parse(JSON.stringify(obj));
+    for (let key in tempObj) {
+        if (Array.isArray(tempObj[key])) {
+            if (tempObj[key].length > maxLength) {
+                tempObj[key] = tempObj[key].slice(0, maxLength);
+                tempObj[key].push("...");
+            }
+        }
+        if (typeof tempObj[key] == "object") {
+            tempObj[key] = shortenObject(tempObj[key]);
+        }
+    }
+    return tempObj;
+}
+
 const printPromptsFile = (choice = "all") => {
     if (choice == "themes" || choice == "all") {
         if (prompts.themes == null) prompts.themes = [];
         console.log(chalk.yellowBright("Loaded themes: "));
-        // parse the prompts object and print it to the console
         prompts.themes.forEach((theme, i) => {
-            console.log(chalk.white((i + 1) + ":  " + JSON.stringify(theme)));
+            let shortObj = shortenObject(theme);
+            console.log(chalk.white((i + 1) + ":  " + JSON.stringify(shortObj)));
         });
     }
     if (choice == "prompts" || choice == "all") {
         if (prompts.prompts != null) {
             console.log(chalk.yellowBright("Loaded prompts: "));
             prompts.prompts.forEach((prompt, i) => {
-                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(prompt)));
+                let shortObj = shortenObject(prompt);
+                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(shortObj)));
             });
         }
     }
@@ -1345,15 +1358,17 @@ const printPromptsFile = (choice = "all") => {
         if (prompts.options != null) {
             console.log(chalk.yellowBright("Loaded options: "));
             prompts.options.forEach((option, i) => {
-                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(option)));
+                let shortObj = shortenObject(option);
+                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(shortObj)));
             });
         }
     }
-    if(choice == "keywords" || choice == "all") {
+    if (choice == "keywords" || choice == "all") {
         if (prompts.keyword_lists != null) {
             console.log(chalk.yellowBright("Loaded keywords: "));
             prompts.keyword_lists.forEach((item, i) => {
-                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(item)));
+                let shortItem = shortenObject(item);
+                console.log(chalk.white((i + 1) + ":  " + JSON.stringify(shortItem)));
             });
         }
     }
@@ -1365,8 +1380,8 @@ const printMainMenu = () => {
     console.log(chalk.white("1. Show loaded themes, prompts, and options"));
     console.log(chalk.white("2. Modify prompts"));
     console.log(chalk.white("3. Modify themes"));
-    console.log(chalk.white("4. Modify keyword lists"));
-    console.log(chalk.white("5. Modify options (applies to all generations)"));
+    console.log(chalk.white("4. Modify options (applies to all generations)"));
+    console.log(chalk.white("5. Modify keyword lists"));
     console.log(chalk.white("6. Start thematic generation from saved theme"));
     console.log(chalk.white("7. Start thematic generation from questions"));
     console.log(chalk.white("8. Start prompt generation from saved prompt"));
@@ -1454,34 +1469,31 @@ const askThemeQuestionsShort = async (theme = null) => {
             }
             let returnString = "";
             if (theme == null || theme == undefined) return input.toLowerCase();
-            else {
-                if (input == "") return theme.keywords[0];
-                else {
-                    // find the theme keyword that is closest to the input
-                    let matches = theme.keywords.filter((word) => {
-                        return word.trim().toLowerCase().startsWith(inputSplit[inputSplit.length - 1]);
-                    });
-                    // remove all entries from matches that are already in the input
-                    matches = matches.filter((word) => {
-                        return !inputSplit.includes(word);
-                    });
-                    if (matches.length > 0) {
-                        for (let i = 0; i < inputSplit.length - 1; i++) {
-                            returnString += inputSplit[i] + ",";
-                        }
-                        returnString += matches[0];
-                        return returnString.toLowerCase();
-                    } else if (matches.length == 0 && theme.keywords.every((word) => { return inputSplit.includes(word); })) {
-                        return input.toLowerCase();
-                    } else if (matches.length == 0 && inputSplit.every((word) => { return theme.keywords.includes(word); })) {
-                        return input.toLowerCase();
-                    } else {
-                        for (let i = 0; i < inputSplit.length; i++) {
-                            returnString += inputSplit[i] + ",";
-                        }
-                        return returnString.toLowerCase();
-                    }
+            if (input == "") return theme.keywords[0];
+            // find the theme keyword that is closest to the input
+            // TODO: use levenshtein distance to find the closest keyword
+            let matches = theme.keywords.filter((word) => {
+                return word.trim().toLowerCase().startsWith(inputSplit[inputSplit.length - 1]);
+            });
+            // remove all entries from matches that are already in the input
+            matches = matches.filter((word) => {
+                return !inputSplit.includes(word);
+            });
+            if (matches.length > 0) {
+                for (let i = 0; i < inputSplit.length - 1; i++) {
+                    returnString += inputSplit[i] + ",";
                 }
+                returnString += matches[0];
+                return returnString.toLowerCase();
+            } else if (matches.length == 0 && theme.keywords.every((word) => { return inputSplit.includes(word); })) {
+                return input.toLowerCase();
+            } else if (matches.length == 0 && inputSplit.every((word) => { return theme.keywords.includes(word); })) {
+                return input.toLowerCase();
+            } else {
+                for (let i = 0; i < inputSplit.length; i++) {
+                    returnString += inputSplit[i] + ",";
+                }
+                return returnString.toLowerCase();
             }
         }
     });
@@ -1539,29 +1551,14 @@ const askOptionQuestions = async () => {
     return res;
 }
 
-const printModifyPromptsMenu = () => {
-    console.log(chalk.yellowBright("Modify Prompts Menu: "));
-    console.log(chalk.white("1. Add prompt"));
-    console.log(chalk.white("2. Remove prompt"));
-    console.log(chalk.white("3. Modify prompt"));
+const printModifyOptionsMenu = (optType) => {
+    console.log(chalk.yellowBright("Modify " + optType + "s Menu: "));
+    console.log(chalk.white("1. Add " + optType));
+    console.log(chalk.white("2. Remove " + optType));
+    console.log(chalk.white("3. Modify " + optType));
     console.log(chalk.white("0. Back"));
 }
 
-const printModifyThemesMenu = () => {
-    console.log(chalk.yellowBright("Modify Themes Menu: "));
-    console.log(chalk.white("1. Add theme"));
-    console.log(chalk.white("2. Remove theme"));
-    console.log(chalk.white("3. Modify theme"));
-    console.log(chalk.white("0. Back"));
-}
-
-const printModifyOptionsMenu = () => {
-    console.log(chalk.yellowBright("Modify Options Menu: "));
-    console.log(chalk.white("1. Add option"));
-    console.log(chalk.white("2. Remove option"));
-    console.log(chalk.white("3. Modify option"));
-    console.log(chalk.white("0. Back"));
-}
 
 // run
 async function run() {
@@ -1831,7 +1828,69 @@ async function run() {
                 }
                 break;
             case "5":  // modify keyword lists
-
+                clearScreenBelowIntro();
+                console.log("Modify keyword lists");
+                let modifyKeywordListsMenuOption = "";
+                while (modifyKeywordListsMenuOption != "0") {
+                    printPromptsFile("keywords");
+                    // print the modify options menu
+                    printModifyOptionsMenu("keyword list");
+                    // ask for the menu option
+                    modifyKeywordListsMenuOption = await askMenuOption((value) => {
+                        value = parseInt(value);
+                        if (value >= 0 <= 3) return true;
+                        else return false;
+                    });
+                    switch (modifyKeywordListsMenuOption) {
+                        case "1":
+                            console.log("Add keyword list");
+                            // ask for the keyword list
+                            let listName = await input({ message: 'What is the name of the keyword list?' });
+                            let listKeywords = await input({ message: 'What are the keywords in the list? (comma separated)' });
+                            let listKeywordsArray = listKeywords.split(",");
+                            // add the keyword list to the prompts object
+                            if (prompts.keyword_lists == null) prompts.keyword_lists = [];
+                            // create the keyword list object
+                            let keywordList = {
+                                name: listName,
+                                keywords: listKeywordsArray
+                            };
+                            prompts.keyword_lists.push(keywordList);
+                            // save the prompts object to the prompts.json file
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                            break;
+                        case "2":
+                            console.log("Remove keyword list");
+                            // ask for the option number
+                            let removeOption = await askMenuOption((value) => {
+                                value = parseInt(value);
+                                if (value >= 0 <= prompts.keyword_lists.length) return true;
+                                else return false;
+                            });
+                            // remove the option from the prompts object
+                            if (prompts.keyword_lists == null) prompts.keyword_lists = [];
+                            prompts.keyword_lists.splice(parseInt(removeOption) - 1, 1);
+                            // save the prompts object to the prompts.json file
+                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                            break;
+                        case "3":
+                            console.log("Modify keyword list");
+                            // ask for the option number
+                            let modifyOption = await askMenuOption((value) => {
+                                value = parseInt(value);
+                                if (value >= 0 <= prompts.keyword_lists.length) return true;
+                                else return false;
+                            });
+                            // TODO:
+                            break;
+                        case "0":
+                            console.log("Exit");
+                            break;
+                        default:
+                            console.log("Invalid option");
+                            break;
+                    }
+                }
                 break;
             case "6":  // start thematic generation from saved theme
                 clearScreenBelowIntro();
@@ -2051,7 +2110,7 @@ async function run() {
                 // commands that could be run:
                 // 1. if the image is a quad, call for upscale of 1, 2, 3, or 4
                 // 2. if the image is a quad, call for variation of 1, 2, 3, or 4
-                // 3. if the image is a quad, call for a vairation on the prompt
+                // 3. if the image is a quad, call for a variation on the prompt
                 // 4. if the image is an upscale call for a weak variation
                 // 5. if the image is an upscale call for a strong variation
                 // 6. if the image is an upscale call for a 1.5x zoom
@@ -2060,7 +2119,7 @@ async function run() {
                 // 9. if the image is an upscale download / save and local AI upscale
 
                 break;
-            case "14": // start geneation based on keyword list
+            case "14": // start generation based on keyword list
                 clearScreenBelowIntro();
                 console.log("Start geneation based on keyword list");
 
@@ -2068,12 +2127,102 @@ async function run() {
                 let keywordListNames = [];
                 prompts.keyword_lists.forEach(list => {
                     let name = list.name;
-                    keywordListNames.push({name: name, value: name});
+                    keywordListNames.push({ name: name, value: name });
                 });
                 let keywordListAnswer = await select({ message: 'Which keyword list?', choices: keywordListNames });
+                let connectMethod = await select({
+                    message: 'How do you want to connect your prompt and list items?',
+                    choices: [
+                        new Separator(" = For Artists/Illustrators/Creators = "),
+                        { name: "in the style of...", value: "in the style of" },
+                        { name: "as if created by...", value: "as if created by" },
+                        { name: "Inspired by...", value: "Inspired by" },
+                        { name: "Channeling the essence of...", value: "Channeling the essence of" },
+                        { name: "Mimicking the artistry of...", value: "Mimicking the artistry of" },
+                        { name: "Through the lens of...", value: "Through the lens of" },
+                        { name: "Echoing the aesthetics of...", value: "Echoing the aesthetics of" },
+                        { name: "Infused with the creativity of...", value: "Infused with the creativity of" },
+                        { name: "Blending the styles of...", value: "Blending the styles of" },
+                        new Separator(" = For Different Themes / Genres = "),
+                        { name: "Enveloped in...", value: "Enveloped in" },
+                        { name: "Radiating the vibe of...", value: "Radiating the vibe of" },
+                        { name: "Embodied with...", value: "Embodied with" },
+                        { name: "Suffused with...", value: "Suffused with" },
+                        { name: "Immersed in the atmosphere of...", value: "Immersed in the atmosphere of" },
+                        { name: "Incorporating elements of...", value: "Incorporating elements of" },
+                        { name: "Infused with the spirit of...", value: "Infused with the spirit of" },
+                        { name: "Evoking the feeling of...", value: "Evoking the feeling of" },
+                        { name: "Capturing the essence of...", value: "Capturing the essence of" },
+                        { name: "Conveying the mood of...", value: "Conveying the mood of" },
+                        new Separator(" = For Time Periods = "),
+                        { name: "Transported to the era of...", value: "Transported to the era of" },
+                        { name: "In the tradition of...", value: "In the tradition of" },
+                        { name: "Capturing the zeitgeist of...", value: "Capturing the zeitgeist of" },
+                        { name: "Anchored in the period of...", value: "Anchored in the period of" },
+                        { name: "Reimagined in the times of...", value: "Reimagined in the times of" },
+                        new Separator(" = For Locations = "),
+                        { name: "Springing from the lands of...", value: "Springing from the lands of" },
+                        { name: "Imbued with the spirit of...", value: "Imbued with the spirit of" },
+                        { name: "Harboring the mystique of...", value: "Harboring the mystique of" },
+                        { name: "Crafted with the allure of...", value: "Crafted with the allure of" },
+                        { name: "Breathing the air of...", value: "Breathing the air of" },
+                        new Separator(" = For Materials / Textures = "),
+                        { name: "Cloaked in the texture of...", value: "Cloaked in the texture of" },
+                        { name: "Fashioned with...", value: "Fashioned with" },
+                        { name: "Ornamented by the materials of...", value: "Ornamented by the materials of" },
+                        { name: "Interplaying with the substances of...", value: "Interplaying with the substances of" },
+                        { name: "Revealing in the medium of...", value: "Revealing in the medium of" },
+                        new Separator(" = For Mood / Emotions = "),
+                        { name: "Steeped in the emotion of...", value: "Steeped in the emotion of" },
+                        { name: "Resonating with the feeling of...", value: "Resonating with the feeling of" },
+                        { name: "Awash with the sentiment of...", value: "Awash with the sentiment of" },
+                        { name: "Drenched in the mood of...", value: "Drenched in the mood of" },
+                        { name: "Tinged with the emotional palette of...", value: "Tinged with the emotional palette of" },
+                        new Separator(" = For Colors = "),
+                        { name: "Drenched in the color of...", value: "Drenched in the color of" },
+                        { name: "Tinged with the color of...", value: "Tinged with the color of" },
+                        { name: "Washed in the color of...", value: "Washed in the color of" },
+                        { name: "Saturated with the color of...", value: "Saturated with the color of" },
+                        { name: "Immersed in the color of...", value: "Immersed in the color of" },
+                        new Separator(" = For Shapes = "),
+                        { name: "Shaped like...", value: "Shaped like" },
+                        { name: "Formed like...", value: "Formed like" },
+                        { name: "Structured like...", value: "Structured like" },
+                        { name: "Outlined like...", value: "Outlined like" },
+                        { name: "Outlined like...", value: "Outlined like" },
+                        new Separator(" = For Objects = "),
+                        { name: "Adorned with...", value: "Adorned with" },
+                        { name: "Decorated with...", value: "Decorated with" },
+                        { name: "Embellished with...", value: "Embellished with" },
+                        { name: "Ornamented with...", value: "Ornamented with" },
+                        { name: "Fashioned with...", value: "Fashioned with" },
+                        { name: "Crafted with...", value: "Crafted with" },
+                        { name: "Constructed with...", value: "Constructed with" },
+                        { name: "Made with...", value: "Made with" },
+                        { name: "Built with...", value: "Built with" },
+                        { name: "Composed of...", value: "Composed of" },
+                        new Separator(" = For People = "),
+                        { name: "In the image of...", value: "In the image of" },
+                        { name: "In the likeness of...", value: "In the likeness of" },
+                        { name: "Resembling...", value: "Resembling" },
+                        { name: "Depicting...", value: "Depicting" },
+                        { name: "Portraying...", value: "Portraying" },
+                        new Separator(" = For Techniques = "),
+                        { name: "Created with the technique of...", value: "Created with the technique of" },
+                        { name: "Using the technique of...", value: "Using the technique of" },
+                        { name: "Using the method of...", value: "Using the method of" },
+                        new Separator(" = For Lighting = "),
+                        { name: "Illuminated by...", value: "Illuminated by" },
+                        new Separator(" = For Camera Effects = "),
+                        { name: "Captured with the effect of...", value: "Captured with the effect of" },
+                        { name: "Captured with the lens of...", value: "Captured with the lens of" },
+                        { name: "Captured with the filter of...", value: "Captured with the filter of" },
+                        { name: "As if shot with the effect of...", value: "As if shot with the effect of" }
+                    ]
+                });
                 let listIndex = 0;
-                for(let list_i = 0; list_i < keywordListNames.length; list_i++) {
-                    if(keywordListNames[list_i].value == keywordListAnswer) listIndex = list_i;
+                for (let list_i = 0; list_i < keywordListNames.length; list_i++) {
+                    if (keywordListNames[list_i].value == keywordListAnswer) listIndex = list_i;
                 }
                 let keywordListArray = prompts.keyword_lists[listIndex].keywords;
 
@@ -2083,17 +2232,23 @@ async function run() {
                 // ask basic questions (save, local upscaling, save quads, etc)
                 let saveQuads = await confirm({ message: 'Save quads?', default: "y" });
                 let callForUpscales = await confirm({ message: 'Call for upscales?', default: "y" });
-                let saveUpscales = await confirm({ message: 'Save upscales?', default: "y" });
-                let localUpscale = await confirm({ message: 'Run local AI upscale?', default: "y" });
+                let saveUpscales = false;
+                let localUpscale = false;
+                if (callForUpscales) {
+                    saveUpscales = await confirm({ message: 'Save upscales?', default: "y" });
+                    if (saveUpscales) {
+                        localUpscale = await confirm({ message: 'Run local AI upscale?', default: "y" });
+                    }
+                }
                 let callForx4Upscales = await confirm({ message: 'Call for x4 upscales?', default: "y" });
 
                 // ask what to run the list against (prompt or file)
-                let whatToRunAgainst = await select({ message: 'What to run the list against?', choices: [{name:"Custom prompt",value:"custom"},{name:"Saved Prompt", value:"saved"}, {name:"File",value:"file"}] });
+                let whatToRunAgainst = await select({ message: 'What to run the list against?', choices: [{ name: "Custom prompt", value: "custom" }, { name: "Saved Prompt", value: "saved" }, { name: "Generate Prompt", value: "generate" }, { name: "File", value: "file" }] });
                 let prompt = "";
                 // if prompt, ask if load prompt or type prompt
-                if(whatToRunAgainst == "custom") {
+                if (whatToRunAgainst == "custom") {
                     prompt = await input({ message: 'What is the prompt?' });
-                }else if(whatToRunAgainst == "saved") {
+                } else if (whatToRunAgainst == "saved") {
                     // print the prompts
                     printPromptsFile("prompts");
                     // ask for the prompt number
@@ -2104,20 +2259,62 @@ async function run() {
                     });
                     // set the prompt answer
                     prompt = prompts.prompts[parseInt(promptChoice2) - 1];
-                }else if(whatToRunAgainst == "file") {
+                } else if (whatToRunAgainst == "generate") {
+                    // ask theme questions
+                    let themeQuestions = await askThemeQuestionsShort();
+                    //split the theme keywords into an array
+                    themeKeywords = themeQuestions.THEME.split(",");
+                    // create the theme object
+                    theme = {
+                        keywords: themeKeywords,
+                        style: themeQuestions.STYLE
+                    };
+                    let chatGPTGenerations = await input({ message: 'How many prompts do you want to generate with ChatGPT? (max ' + userConfig.max_ChatGPT_Responses + ')', default: "1" });
+                    chatGPTGenerations = parseInt(chatGPTGenerations);
+                    // generate the prompt from the theme
+                    if (chatGPTGenerations > userConfig.max_ChatGPT_Responses) chatGPTGenerations = userConfig.max_ChatGPT_Responses;
+                    res = await generatePromptFromThemKeywordsBatch(theme, chatGPTGenerations);
+                    if (res == null) break;
+                    // find and replace all "-" in res with " " (space)
+                    res = res.replaceAll("-", " ");
+                    if (res.indexOf("{") == -1) {
+                        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                        break;
+                    }
+                    try {
+                        res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+                    }
+                    catch (e) {
+                        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+                        await waitSeconds(2);
+                        break;
+                    }
+                    //log the prompt
+                    console.log("");
+                    res.prompts.forEach((prompt, i) => {
+                        if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+                        else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+                        else console.log(chalk.green((i + 1) + ":  " + prompt));
+                    });
+                    // get the prompt from the user
+                    promptChoice = await askMenuOption();
+                    // set the prompt answer
+                    prompt = res.prompts[Math.min(parseInt(promptChoice) - 1, res.prompts.length - 1)];
+                    console.log({ prompt });
+                } else if (whatToRunAgainst == "file") {
                     // if file, ask for file
-                    if(!fs.existsSync("./inputFiles")) fs.mkdirSync("./inputFiles");
+                    if (!fs.existsSync("./inputFiles")) fs.mkdirSync("./inputFiles");
                     let fileList = fs.readdirSync("./inputFiles");
                     fileList.forEach((file, i) => {
-                        fileList[i] = {name: file.substring(file.lastIndexOf("/")), value: file};
+                        fileList[i] = { name: file.substring(file.lastIndexOf("/")), value: file };
                     });
                     let file = await select({ message: 'Which file?', choices: fileList });
                     file = "./inputFiles/" + file;
                     console.log(file);
                     let confirmUpload = await confirm({ message: 'Are you sure you want to upload this file?', default: "y" });
                     let url = "";
-                    if(confirmUpload) {
-                        let jobInitObj = await discordUploader.uploadFile(file, userConfig.channel_id);
+                    if (confirmUpload) {
+                        let jobInitObj = discordUploader.uploadFile(file, userConfig.channel_id);
                         jobInitObj.promise.then((res) => {
                             console.log("Upload complete!");
                             url = res;
@@ -2126,41 +2323,51 @@ async function run() {
                         });
                         // wait for upload to complete
                         let waitCount = 0;
-                        while(url == "") {
+                        while (url == "") {
                             waitCount++;
                             process.stdout.write(".");
-                            if(waitCount > 10) break; // wait for 5 seconds max
+                            if (waitCount > 10) break; // wait for 5 seconds max
                             await waitSeconds(0.5);
                         }
 
                         // if the upload failed, use a random dog image instead
-                        if(url == ""){
+                        if (url == "") {
                             console.log("Upload failed! Using a random dog image instead.");
                             let dog = await fetch('https://dog.ceo/api/breeds/image/random');
                             let dogJson = await dog.json();
-                            url = dogJson.message;                            
+                            url = dogJson.message;
                         }
                         prompt = url + " ";
-                    }else{
+                    } else {
                         break;
                     }
                 }
 
                 promptAnswer = [];
                 keywordListArray.forEach(keyword => {
-                    if(prompt.indexOf(" --") == -1) promptAnswer.push(prompt + " " + keyword);
-                    else promptAnswer.push(prompt.substring(0, prompt.indexOf(" --")) + " " + keyword);
+                    // add the keyword to the end of the prompt
+                    if (prompt.indexOf(" --") == -1) promptAnswer.push(prompt + connectMethod + ": " + keyword);
+                    else promptAnswer.push(prompt.substring(0, prompt.indexOf(" --")) + connectMethod + ": " + keyword);
+                    // if the prompt had a weight value in it, add one to end with a slightly higher weight
+                    if (prompt.indexOf("::") > -1) {
+                        let value = prompt.substring(prompt.lastIndexOf("::") + 2, prompt.lastIndexOf("::") + 7);
+                        value = value.substring(0, value.indexOf(" "));
+                        value = parseInt(value);
+                        if (value > 0) {
+                            promptAnswer[promptAnswer.length - 1] += " ::" + Math.floor(value * 1.01);
+                        }
+                    }
                 });
 
                 generationsAnswer = runCount;
-                upscaleAnswer = callForUpscales?"4":"0";
+                upscaleAnswer = callForUpscales ? "4" : "0";
                 saveUpscalesAnswer = saveUpscales;
                 saveQuadsAnswer = saveQuads;
                 variationAnswer = 0;
                 zoomAnswer = 0
                 aiUpscale = localUpscale;
                 mjX4UpscaleAnswer = callForx4Upscales;
-                
+
                 runnerGo = true;
                 break;
             case "0":
