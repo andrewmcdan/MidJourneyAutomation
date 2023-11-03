@@ -1559,10 +1559,347 @@ const printModifyOptionsMenu = (optType) => {
     console.log(chalk.white("0. Back"));
 }
 
+class runOptions{
+    constructor(
+        upscaleAnswer = 0,
+        promptAnswer = [],
+        generationAnswer = 4,
+        variationAnswer = 0,
+        zoomAnswer = 0,
+        saveUpscalesAnswer = false,
+        saveQuadsAnswer = false,
+        mjX4UpscaleAnswer = false,
+        themeKeywords = [],
+        basicAnswers = {},
+        theme = {},
+        res = {},
+        aiUpscale = false,
+        promptChoice = "",
+        addOption = "",
+        option = "",
+        removeTheme = "",
+        runningProcess = false ){
+        this.upscaleAnswer = upscaleAnswer;
+        this.promptAnswer = promptAnswer;
+        this.generationAnswer = generationAnswer;
+        this.variationAnswer = variationAnswer;
+        this.zoomAnswer = zoomAnswer;
+        this.saveUpscalesAnswer = saveUpscalesAnswer;
+        this.saveQuadsAnswer = saveQuadsAnswer;
+        this.mjX4UpscaleAnswer = mjX4UpscaleAnswer;
+        this.themeKeywords = themeKeywords;
+        this.basicAnswers = basicAnswers;
+        this.theme = theme;
+        this.res = res;
+        this.aiUpscale = aiUpscale;
+        this.promptChoice = promptChoice;
+        this.addOption = addOption;
+        this.option = option;
+        this.removeTheme = removeTheme;
+        this.runningProcess = runningProcess;
+    }
+};
 
+const showLoadedThemesPromptsOptions = async () => {
+    clearScreenBelowIntro();
+    console.log("Show loaded themes, prompts, and options");
+    // print the info from the prompts file
+    printPromptsFile();
+    // wait for enter to be pressed
+    await pressEnterToReturnToMenu();
+};
+
+const modifyPrompts = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Modify prompts");
+    let modifyPromptsMenuOption = "";
+    while (modifyPromptsMenuOption != "0") {
+        printPromptsFile("prompts");
+        // print the modify prompts menu
+        printModifyPromptsMenu();
+        // ask for the menu option
+        modifyPromptsMenuOption = await askMenuOption((value) => {
+            value = parseInt(value);
+            if (value >= 0 <= 3) return true;
+            else return false;
+        });
+        switch (modifyPromptsMenuOption) {
+            case "1":
+                console.log("Add prompt");
+                // ask for the prompt
+                let addPrompt = await askPromptQuestionShort();
+                // add the prompt to the prompts object
+                if (prompts.prompts == null) prompts.prompts = [];
+                prompts.prompts.push(addPrompt);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "2":
+                console.log("Remove prompt");
+                // ask for the prompt number
+                let removePrompt = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.prompts.length) return true;
+                    else return false;
+                });
+                // remove the prompt from the prompts object
+                if (prompts.prompts == null) prompts.prompts = [];
+                prompts.prompts.splice(parseInt(removePrompt) - 1, 1);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "3":
+                console.log("Modify prompt");
+                // ask for the prompt number
+                let modifyPrompt = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.prompts.length) return true;
+                    else return false;
+                });
+                // ask for the prompt
+                let modifyPromptQuestions = await askPromptQuestionShort();
+                // modify the prompt in the prompts object
+                if (prompts.prompts == null) prompts.prompts = [];
+                prompts.prompts[parseInt(modifyPrompt) - 1] = modifyPromptQuestions.PROMPT;
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "0":
+                console.log("Exit");
+                break;
+            default:
+                console.log("Invalid option");
+                break;
+        }
+    }
+};
+
+const modifyThemes = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Modify themes");
+    let modifyThemesMenuOption = "";
+    while (modifyThemesMenuOption != "0") {
+        printPromptsFile("themes");
+        // print the modify themes menu
+        printModifyThemesMenu();
+        // ask for the menu option
+        modifyThemesMenuOption = await askMenuOption((value) => {
+            value = parseInt(value);
+            if (value >= 0 <= 3) return true;
+            else return false;
+        });
+        switch (modifyThemesMenuOption) {
+            case "1":
+                console.log("Add theme");
+                // ask for the theme
+                let addTheme = await askThemeQuestionsShort();
+                // add the theme to the prompts object
+                if (prompts.themes == null) prompts.themes = [];
+                //split the theme keywords into an array
+                let themeKeywords = addTheme.THEME.split(",");
+                // create the theme object
+                let theme = {
+                    keywords: themeKeywords,
+                    style: addTheme.STYLE
+                };
+                prompts.themes.push(theme);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "2":
+                console.log("Remove theme");
+                // ask for the theme number
+                runOpts.removeTheme = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.themes.length) return true;
+                    else return false;
+                });
+                // remove the theme from the prompts object
+                if (prompts.themes == null) prompts.themes = [];
+                prompts.themes.splice(parseInt(runOpts.removeTheme) - 1, 1);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "3":
+                console.log("Modify theme");
+                //console.log("Which theme do you want to modify?");
+                // ask for the theme number
+                let modifyTheme = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.themes.length) return true;
+                    else return false;
+                });
+                // ask for the theme
+                let modifyThemeQuestions = await askThemeQuestionsShort(prompts.themes[parseInt(modifyTheme) - 1]);
+                // modify the theme in the prompts object
+                if (prompts.themes == null) prompts.themes = [];
+                //split the theme keywords into an array
+                let modifyThemeKeywords = modifyThemeQuestions.THEME.split(",");
+                // create the theme object
+                let modifyThemeObject = {
+                    keywords: modifyThemeKeywords,
+                    style: modifyThemeQuestions.STYLE
+                };
+                prompts.themes[parseInt(modifyTheme) - 1] = modifyThemeObject;
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "0":
+                console.log("Exit");
+                break;
+            default:
+                console.log("Invalid option");
+                break;
+        }
+    }
+};
+
+const modifyOptions = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Modify MJ options (applies to all generations)");
+    let modifyOptionsMenuOption = "";
+    while (modifyOptionsMenuOption != "0") {
+        printPromptsFile("options");
+        // print the modify options menu
+        printModifyOptionsMenu();
+        // ask for the menu option
+        modifyOptionsMenuOption = await askMenuOption((value) => {
+            value = parseInt(value);
+            if (value >= 0 <= 3) return true;
+            else return false;
+        });
+        switch (modifyOptionsMenuOption) {
+            case "1":
+                console.log("Add option");
+                // ask for the option
+                runOpts.addOption = await askOptionQuestions();
+                // add the option to the prompts object
+                if (prompts.options == null) prompts.options = [];
+                // create the option object
+                let option = {
+                    name: runOpts.addOption.NAME,
+                    value: runOpts.addOption.VALUE,
+                    enabled: runOpts.addOption.ENABLED == "y" || runOpts.addOption.ENABLED == "Y" ? true : false
+                };
+                prompts.options.push(option);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "2":
+                console.log("Remove option");
+                // ask for the option number
+                let removeOption = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.options.length) return true;
+                    else return false;
+                });
+                // remove the option from the prompts object
+                if (prompts.options == null) prompts.options = [];
+                prompts.options.splice(parseInt(removeOption) - 1, 1);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "3":
+                console.log("Modify option");
+                // ask for the option number
+                let modifyOption = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.options.length) return true;
+                    else return false;
+                });
+                // ask for the option
+                let modifyOptionQuestions = await askOptionQuestions();
+                // modify the option in the prompts object
+                if (prompts.options == null) prompts.options = [];
+                // create the option object
+                let modifyOptionObject = {
+                    name: modifyOptionQuestions.NAME,
+                    value: modifyOptionQuestions.VALUE,
+                    enabled: modifyOptionQuestions.ENABLED == "y" || modifyOptionQuestions.ENABLED == "Y" ? true : false
+                };
+                prompts.options[parseInt(modifyOption) - 1] = modifyOptionObject;
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "0":
+                console.log("Exit");
+                break;
+            default:
+                console.log("Invalid option");
+                break;
+        }
+    }
+};
+
+const modifyKeywordLists = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Modify keyword lists");
+    let modifyKeywordListsMenuOption = "";
+    while (modifyKeywordListsMenuOption != "0") {
+        printPromptsFile("keywords");
+        // print the modify options menu
+        printModifyOptionsMenu("keyword list");
+        // ask for the menu option
+        modifyKeywordListsMenuOption = await askMenuOption((value) => {
+            value = parseInt(value);
+            if (value >= 0 <= 3) return true;
+            else return false;
+        });
+        switch (modifyKeywordListsMenuOption) {
+            case "1":
+                console.log("Add keyword list");
+                // ask for the keyword list
+                let listName = await input({ message: 'What is the name of the keyword list?' });
+                let listKeywords = await input({ message: 'What are the keywords in the list? (comma separated)' });
+                let listKeywordsArray = listKeywords.split(",");
+                // add the keyword list to the prompts object
+                if (prompts.keyword_lists == null) prompts.keyword_lists = [];
+                // create the keyword list object
+                let keywordList = {
+                    name: listName,
+                    keywords: listKeywordsArray
+                };
+                prompts.keyword_lists.push(keywordList);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "2":
+                console.log("Remove keyword list");
+                // ask for the option number
+                let removeOption = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.keyword_lists.length) return true;
+                    else return false;
+                });
+                // remove the option from the prompts object
+                if (prompts.keyword_lists == null) prompts.keyword_lists = [];
+                prompts.keyword_lists.splice(parseInt(removeOption) - 1, 1);
+                // save the prompts object to the prompts.json file
+                fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
+                break;
+            case "3":
+                console.log("Modify keyword list");
+                // ask for the option number
+                let modifyOption = await askMenuOption((value) => {
+                    value = parseInt(value);
+                    if (value >= 0 <= prompts.keyword_lists.length) return true;
+                    else return false;
+                });
+                // TODO:
+                break;
+            case "0":
+                console.log("Exit");
+                break;
+            default:
+                console.log("Invalid option");
+                break;
+        }
+    }
+};
 // run
 async function run() {
     // show script intro
+    let runOpts = new runOptions();
     let menuOption = { OPTION: "" };
     let promptAnswer = [];
     promptAnswer.push("a cute cat");
@@ -1573,7 +1910,6 @@ async function run() {
     let saveUpscalesAnswer = false;
     let saveQuadsAnswer = false;
     let mjX4UpscaleAnswer = false;
-    let fileToUpload = null;
     let themeKeywords;
     let themeChoice;
     let basicAnswers;
@@ -1598,323 +1934,46 @@ async function run() {
             if (value >= 0 <= 11) return true;
             else return false;
         });
-        // if option 1, modify prompts
         switch (menuOption) {
             case "1":  // show loaded themes, prompts, and options
-                clearScreenBelowIntro();
-                console.log("Show loaded themes, prompts, and options");
-                // print the info from the prompts file
-                printPromptsFile();
-                // wait for enter to be pressed
-                await pressEnterToReturnToMenu();
+                showLoadedThemesPromptsOptions();
                 break;
             case "2":  // modify prompts
-                clearScreenBelowIntro();
-                console.log("Modify prompts");
-                let modifyPromptsMenuOption = "";
-                while (modifyPromptsMenuOption != "0") {
-                    printPromptsFile("prompts");
-                    // print the modify prompts menu
-                    printModifyPromptsMenu();
-                    // ask for the menu option
-                    modifyPromptsMenuOption = await askMenuOption((value) => {
-                        value = parseInt(value);
-                        if (value >= 0 <= 3) return true;
-                        else return false;
-                    });
-                    switch (modifyPromptsMenuOption) {
-                        case "1":
-                            console.log("Add prompt");
-                            // ask for the prompt
-                            let addPrompt = await askPromptQuestionShort();
-                            // add the prompt to the prompts object
-                            if (prompts.prompts == null) prompts.prompts = [];
-                            prompts.prompts.push(addPrompt);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "2":
-                            console.log("Remove prompt");
-                            // ask for the prompt number
-                            let removePrompt = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.prompts.length) return true;
-                                else return false;
-                            });
-                            // remove the prompt from the prompts object
-                            if (prompts.prompts == null) prompts.prompts = [];
-                            prompts.prompts.splice(parseInt(removePrompt) - 1, 1);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "3":
-                            console.log("Modify prompt");
-                            // ask for the prompt number
-                            let modifyPrompt = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.prompts.length) return true;
-                                else return false;
-                            });
-                            // ask for the prompt
-                            let modifyPromptQuestions = await askPromptQuestionShort();
-                            // modify the prompt in the prompts object
-                            if (prompts.prompts == null) prompts.prompts = [];
-                            prompts.prompts[parseInt(modifyPrompt) - 1] = modifyPromptQuestions.PROMPT;
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "0":
-                            console.log("Exit");
-                            break;
-                        default:
-                            console.log("Invalid option");
-                            break;
-                    }
-                }
+                modifyPrompts(runOpts);
                 break;
             case "3": // modify themes
-                clearScreenBelowIntro();
-                console.log("Modify themes");
-                let modifyThemesMenuOption = "";
-                while (modifyThemesMenuOption != "0") {
-                    printPromptsFile("themes");
-                    // print the modify themes menu
-                    printModifyThemesMenu();
-                    // ask for the menu option
-                    modifyThemesMenuOption = await askMenuOption((value) => {
-                        value = parseInt(value);
-                        if (value >= 0 <= 3) return true;
-                        else return false;
-                    });
-                    switch (modifyThemesMenuOption) {
-                        case "1":
-                            console.log("Add theme");
-                            // ask for the theme
-                            let addTheme = await askThemeQuestionsShort();
-                            // add the theme to the prompts object
-                            if (prompts.themes == null) prompts.themes = [];
-                            //split the theme keywords into an array
-                            let themeKeywords = addTheme.THEME.split(",");
-                            // create the theme object
-                            let theme = {
-                                keywords: themeKeywords,
-                                style: addTheme.STYLE
-                            };
-                            prompts.themes.push(theme);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "2":
-                            console.log("Remove theme");
-                            // ask for the theme number
-                            removeTheme = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.themes.length) return true;
-                                else return false;
-                            });
-                            // remove the theme from the prompts object
-                            if (prompts.themes == null) prompts.themes = [];
-                            prompts.themes.splice(parseInt(removeTheme) - 1, 1);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "3":
-                            console.log("Modify theme");
-                            //console.log("Which theme do you want to modify?");
-                            // ask for the theme number
-                            let modifyTheme = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.themes.length) return true;
-                                else return false;
-                            });
-                            // ask for the theme
-                            let modifyThemeQuestions = await askThemeQuestionsShort(prompts.themes[parseInt(modifyTheme) - 1]);
-                            // modify the theme in the prompts object
-                            if (prompts.themes == null) prompts.themes = [];
-                            //split the theme keywords into an array
-                            let modifyThemeKeywords = modifyThemeQuestions.THEME.split(",");
-                            // create the theme object
-                            let modifyThemeObject = {
-                                keywords: modifyThemeKeywords,
-                                style: modifyThemeQuestions.STYLE
-                            };
-                            prompts.themes[parseInt(modifyTheme) - 1] = modifyThemeObject;
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "0":
-                            console.log("Exit");
-                            break;
-                        default:
-                            console.log("Invalid option");
-                            break;
-                    }
-                }
+                modifyThemes(runOpts);
                 break;
             case "4":  // modify options
-                clearScreenBelowIntro();
-                console.log("Modify MJ options (applies to all generations)");
-                let modifyOptionsMenuOption = "";
-                while (modifyOptionsMenuOption != "0") {
-                    printPromptsFile("options");
-                    // print the modify options menu
-                    printModifyOptionsMenu();
-                    // ask for the menu option
-                    modifyOptionsMenuOption = await askMenuOption((value) => {
-                        value = parseInt(value);
-                        if (value >= 0 <= 3) return true;
-                        else return false;
-                    });
-                    switch (modifyOptionsMenuOption) {
-                        case "1":
-                            console.log("Add option");
-                            // ask for the option
-                            addOption = await askOptionQuestions();
-                            // add the option to the prompts object
-                            if (prompts.options == null) prompts.options = [];
-                            // create the option object
-                            option = {
-                                name: addOption.NAME,
-                                value: addOption.VALUE,
-                                enabled: addOption.ENABLED == "y" || addOption.ENABLED == "Y" ? true : false
-                            };
-                            prompts.options.push(option);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "2":
-                            console.log("Remove option");
-                            // ask for the option number
-                            let removeOption = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.options.length) return true;
-                                else return false;
-                            });
-                            // remove the option from the prompts object
-                            if (prompts.options == null) prompts.options = [];
-                            prompts.options.splice(parseInt(removeOption) - 1, 1);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "3":
-                            console.log("Modify option");
-                            // ask for the option number
-                            let modifyOption = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.options.length) return true;
-                                else return false;
-                            });
-                            // ask for the option
-                            let modifyOptionQuestions = await askOptionQuestions();
-                            // modify the option in the prompts object
-                            if (prompts.options == null) prompts.options = [];
-                            // create the option object
-                            let modifyOptionObject = {
-                                name: modifyOptionQuestions.NAME,
-                                value: modifyOptionQuestions.VALUE,
-                                enabled: modifyOptionQuestions.ENABLED == "y" || modifyOptionQuestions.ENABLED == "Y" ? true : false
-                            };
-                            prompts.options[parseInt(modifyOption) - 1] = modifyOptionObject;
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "0":
-                            console.log("Exit");
-                            break;
-                        default:
-                            console.log("Invalid option");
-                            break;
-                    }
-                }
+                modifyOptions(runopts);
                 break;
             case "5":  // modify keyword lists
-                clearScreenBelowIntro();
-                console.log("Modify keyword lists");
-                let modifyKeywordListsMenuOption = "";
-                while (modifyKeywordListsMenuOption != "0") {
-                    printPromptsFile("keywords");
-                    // print the modify options menu
-                    printModifyOptionsMenu("keyword list");
-                    // ask for the menu option
-                    modifyKeywordListsMenuOption = await askMenuOption((value) => {
-                        value = parseInt(value);
-                        if (value >= 0 <= 3) return true;
-                        else return false;
-                    });
-                    switch (modifyKeywordListsMenuOption) {
-                        case "1":
-                            console.log("Add keyword list");
-                            // ask for the keyword list
-                            let listName = await input({ message: 'What is the name of the keyword list?' });
-                            let listKeywords = await input({ message: 'What are the keywords in the list? (comma separated)' });
-                            let listKeywordsArray = listKeywords.split(",");
-                            // add the keyword list to the prompts object
-                            if (prompts.keyword_lists == null) prompts.keyword_lists = [];
-                            // create the keyword list object
-                            let keywordList = {
-                                name: listName,
-                                keywords: listKeywordsArray
-                            };
-                            prompts.keyword_lists.push(keywordList);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "2":
-                            console.log("Remove keyword list");
-                            // ask for the option number
-                            let removeOption = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.keyword_lists.length) return true;
-                                else return false;
-                            });
-                            // remove the option from the prompts object
-                            if (prompts.keyword_lists == null) prompts.keyword_lists = [];
-                            prompts.keyword_lists.splice(parseInt(removeOption) - 1, 1);
-                            // save the prompts object to the prompts.json file
-                            fs.writeFileSync('prompts.json', JSON.stringify(prompts, null, 2));
-                            break;
-                        case "3":
-                            console.log("Modify keyword list");
-                            // ask for the option number
-                            let modifyOption = await askMenuOption((value) => {
-                                value = parseInt(value);
-                                if (value >= 0 <= prompts.keyword_lists.length) return true;
-                                else return false;
-                            });
-                            // TODO:
-                            break;
-                        case "0":
-                            console.log("Exit");
-                            break;
-                        default:
-                            console.log("Invalid option");
-                            break;
-                    }
-                }
+                modifyKeywordLists(runOpts);
                 break;
             case "6":  // start thematic generation from saved theme
+            const startThematicGenerationFromSavedTheme = async (runOpts) => {
                 clearScreenBelowIntro();
                 console.log("Start thematic generation from saved theme");
                 // print the themes
                 printPromptsFile("themes");
                 // ask for the theme number
-                themeChoice = await askMenuOption((value) => {
+                let themeChoice = await askMenuOption((value) => {
                     value = parseInt(value);
                     if (value >= 0 <= prompts.themes.length) return true;
                     else return false;
                 });
-                basicAnswers = await askImageGenQuestions();
+                runOpts.basicAnswers = await askImageGenQuestions();
                 //split the theme keywords into an array
-                themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
+                let themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
                 // create the theme object
-                theme = {
+                let theme = {
                     keywords: themeKeywords,
                     style: prompts.themes[parseInt(themeChoice) - 1].style
                 };
-                basicAnswers.CHATGPTGENERATIONS = parseInt(basicAnswers.CHATGPTGENERATIONS);
-                if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
+                runOpts.basicAnswers.CHATGPTGENERATIONS = parseInt(runOpts.basicAnswers.CHATGPTGENERATIONS);
+                if (runOpts.basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) runOpts.basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
                 // generate the prompt from the theme
-                res = await generatePromptFromThemKeywordsBatch(theme, basicAnswers.CHATGPTGENERATIONS);
+                res = await generatePromptFromThemKeywordsBatch(theme, runOpts.basicAnswers.CHATGPTGENERATIONS);
                 if (res == null) break;
                 // find and replace all "-" in res with " " (space)
                 res = res.replaceAll("-", " ");
