@@ -1896,11 +1896,73 @@ const modifyKeywordLists = async (runOpts) => {
         }
     }
 };
+
+const startThematicGenerationFromSavedTheme = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start thematic generation from saved theme");
+    // print the themes
+    printPromptsFile("themes");
+    // ask for the theme number
+    let themeChoice = await askMenuOption((value) => {
+        value = parseInt(value);
+        if (value >= 0 <= prompts.themes.length) return true;
+        else return false;
+    });
+    let basicAnswers = await askImageGenQuestions();
+    //split the theme keywords into an array
+    let themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
+    // create the theme object
+    let theme = {
+        keywords: themeKeywords,
+        style: prompts.themes[parseInt(themeChoice) - 1].style
+    };
+    basicAnswers.CHATGPTGENERATIONS = parseInt(basicAnswers.CHATGPTGENERATIONS);
+    if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
+    // generate the prompt from the theme
+    let res = await generatePromptFromThemKeywordsBatch(theme, basicAnswers.CHATGPTGENERATIONS);
+    if (res == null) return;
+    // find and replace all "-" in res with " " (space)
+    res = res.replaceAll("-", " ");
+    if (res.indexOf("{") == -1) {
+        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+        await waitSeconds(2);
+        return;
+    }
+    try {
+        res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+    }
+    catch (e) {
+        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+        await waitSeconds(2);
+        return;
+    }
+    console.log("");
+    //log the prompt
+    res.prompts.forEach((prompt, i) => {
+        if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+        else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+        else console.log(chalk.green((i + 1) + ":  " + prompt));
+    });
+    runOpts.promptAnswer = [];
+    res.prompts.forEach((prompt, i) => {
+        promptAnswer.push(prompt);
+    });
+    // set the answers
+    runOpts.generationsAnswer = parseInt(basicAnswers.GENERATIONS);
+    runOpts.upscaleAnswer = parseInt(basicAnswers.UPSCALE);
+    runOpts.saveUpscalesAnswer = basicAnswers.SAVEUPSCALES;
+    runOpts.saveQuadsAnswer = basicAnswers.SAVEQUADS;
+    runOpts.variationAnswer = parseInt(basicAnswers.VARIATION);
+    runOpts.zoomAnswer = parseInt(basicAnswers.ZOOM);
+    runOpts.aiUpscale = basicAnswers.AIUPSCALE;
+    runOpts.mjX4UpscaleAnswer = basicAnswers.MJx4UPSCALE;
+    runOpts.runnerGo = true;
+}
 // run
 async function run() {
     // show script intro
     let runOpts = new runOptions();
-    let menuOption = { OPTION: "" };
+    let menuOption = "";
     let promptAnswer = [];
     promptAnswer.push("a cute cat");
     let generationsAnswer = 4;
@@ -1951,66 +2013,7 @@ async function run() {
                 modifyKeywordLists(runOpts);
                 break;
             case "6":  // start thematic generation from saved theme
-            const startThematicGenerationFromSavedTheme = async (runOpts) => {
-                clearScreenBelowIntro();
-                console.log("Start thematic generation from saved theme");
-                // print the themes
-                printPromptsFile("themes");
-                // ask for the theme number
-                let themeChoice = await askMenuOption((value) => {
-                    value = parseInt(value);
-                    if (value >= 0 <= prompts.themes.length) return true;
-                    else return false;
-                });
-                runOpts.basicAnswers = await askImageGenQuestions();
-                //split the theme keywords into an array
-                let themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
-                // create the theme object
-                let theme = {
-                    keywords: themeKeywords,
-                    style: prompts.themes[parseInt(themeChoice) - 1].style
-                };
-                runOpts.basicAnswers.CHATGPTGENERATIONS = parseInt(runOpts.basicAnswers.CHATGPTGENERATIONS);
-                if (runOpts.basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) runOpts.basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
-                // generate the prompt from the theme
-                res = await generatePromptFromThemKeywordsBatch(theme, runOpts.basicAnswers.CHATGPTGENERATIONS);
-                if (res == null) break;
-                // find and replace all "-" in res with " " (space)
-                res = res.replaceAll("-", " ");
-                if (res.indexOf("{") == -1) {
-                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                    await waitSeconds(2);
-                    break;
-                }
-                try {
-                    res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
-                }
-                catch (e) {
-                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                    await waitSeconds(2);
-                    break;
-                }
-                console.log("");
-                //log the prompt
-                res.prompts.forEach((prompt, i) => {
-                    if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
-                    else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
-                    else console.log(chalk.green((i + 1) + ":  " + prompt));
-                });
-                promptAnswer = [];
-                res.prompts.forEach((prompt, i) => {
-                    promptAnswer.push(prompt);
-                });
-                // set the answers
-                generationsAnswer = parseInt(basicAnswers.GENERATIONS);
-                upscaleAnswer = parseInt(basicAnswers.UPSCALE);
-                saveUpscalesAnswer = basicAnswers.SAVEUPSCALES;
-                saveQuadsAnswer = basicAnswers.SAVEQUADS;
-                variationAnswer = parseInt(basicAnswers.VARIATION);
-                zoomAnswer = parseInt(basicAnswers.ZOOM);
-                aiUpscale = basicAnswers.AIUPSCALE;
-                mjX4UpscaleAnswer = basicAnswers.MJx4UPSCALE;
-                runnerGo = true;
+                startThematicGenerationFromSavedTheme(runOpts);
                 break;
             case "7": // start thematic generation from questions
                 clearScreenBelowIntro();
