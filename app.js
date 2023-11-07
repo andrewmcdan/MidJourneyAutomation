@@ -1048,7 +1048,8 @@ async function sendChatGPTPrompt(prompt) {
             /**
              * You can think of tokens as pieces of words, where 1,000 tokens is about 750 words.
              */
-            model: 'gpt-4', // in: $0.03 / 1K tokens	out: $0.06 / 1K tokens
+            model: 'gpt-4-1106-preview', // in: $0.01 / 1K tokens	out: $0.03 / 1K tokens
+            // model: 'gpt-4', // in: $0.03 / 1K tokens	out: $0.06 / 1K tokens
             // model: 'gpt-4-32k', // in: $0.06 / 1K tokens     out: $0.12 / 1K tokens
             // model: 'gpt-3.5-turbo-16k', // in: $0.003 / 1K tokens	out: $0.004 / 1K tokens
             temperature: 1.5,
