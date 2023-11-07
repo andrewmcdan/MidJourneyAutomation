@@ -693,7 +693,7 @@ if (userConfig.relaxedEnabled == null || userConfig.relaxedEnabled == undefined)
 const doLogin = async () => {
     let newToken = "";
     console.log("Logging in to Discord using headless browser...")
-    const browser = await puppeteer.launch({ headless: "new", timeout: 60000 });
+    const browser = await puppeteer.launch({ headless: false, timeout: 60000 });
     const page = await browser.newPage();
 
     page.on('request', async (request) => {
