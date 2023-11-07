@@ -374,6 +374,20 @@ class MJ_Handler {
         });
     }
 
+    async showCommand(uuid) {
+        let msg = await this.mj.showCommand(uuid);
+        if (msg == null) return null;
+        console.log({ msg });
+        let regex = /\** - Image #[1-4] <@/g;
+        let matches = msg.fullPrompt.match(regex);
+        if (matches.length > 0) {
+            msg.commands = ["Vary (Strong)", "Vary (subtle)", "Upscale 2x", "Upscale 4x", "Zoom Out 2x", "Zoom Out 4x", "Make Square", "Expand Left", "Expand Right", "Expand Up", "Expand Down"];
+        }else{
+            msg.command = ["ReRoll", "Upscale #1", "Upscale #2", "Upscale #3", "Upscale #4", "Variations #1", "Variations #2", "Variations #3", "Variations #4", "Upscale All", "Variations All"];
+        }
+        return msg;
+    }
+
     // the main function runner
     // MJprompt: the prompt to send to Midjourney
     // maxGenerations: the max number of times to run the outer loop
@@ -482,7 +496,7 @@ class MJ_Handler {
                     }
                     // check to see if the upscale queue still has items and if the max upscales is reached. If so, clear the queue.
                     let upscaleQueueStillHasItemsAndMaxUpscalesReached = upscaleQueue.length > 0 && maxUpscalesCount >= maxUpscales;
-                    if(upscaleQueueStillHasItemsAndMaxUpscalesReached) while(upscaleQueue.length > 0) upscaleQueue.shift();
+                    if (upscaleQueueStillHasItemsAndMaxUpscalesReached) while (upscaleQueue.length > 0) upscaleQueue.shift();
                     // loop through the queues and run the appropriate function
                     while (variationQueue.length > 0 && maxVariationsCount < maxVariations) {
                         // get the image from the queue
@@ -518,7 +532,7 @@ class MJ_Handler {
                     }
                     // check to see if the variation queue still has items and if the max variations is reached. If so, clear the queue.
                     let variationQueueStillHasItemsAndMaxVariationsReached = variationQueue.length > 0 && maxVariationsCount >= maxVariations;
-                    if(variationQueueStillHasItemsAndMaxVariationsReached) while(variationQueue.length > 0) variationQueue.shift();
+                    if (variationQueueStillHasItemsAndMaxVariationsReached) while (variationQueue.length > 0) variationQueue.shift();
                     // loop through the queues and run the appropriate function
                     while (zoomQueue.length > 0 && maxZoomsCount < maxZooms) {
                         // get the image from the queue
@@ -553,7 +567,7 @@ class MJ_Handler {
                     }
                     // check to see if the zoom queue still has items and if the max zooms is reached. If so, clear the queue.
                     let zoomQueueStillHasItemsAndMaxZoomsReached = zoomQueue.length > 0 && maxZoomsCount >= maxZooms;
-                    if(zoomQueueStillHasItemsAndMaxZoomsReached) while(zoomQueue.length > 0) zoomQueue.shift();
+                    if (zoomQueueStillHasItemsAndMaxZoomsReached) while (zoomQueue.length > 0) zoomQueue.shift();
                     while (x4_upscaleQueue.length > 0 && maxX4_upscalesCount < x4_upscales.max && x4_upscales.enabled) {
                         // get the image from the queue
                         let img = x4_upscaleQueue.shift();
@@ -581,7 +595,7 @@ class MJ_Handler {
                     }
                     // check to see if the x4 upscale queue still has items and if the max x4 upscales is reached. If so, clear the queue.
                     let x4_upscaleQueueStillHasItemsAndMaxX4_upscalesReached = x4_upscaleQueue.length > 0 && maxX4_upscalesCount >= x4_upscales.max && x4_upscales.enabled;
-                    if(x4_upscaleQueueStillHasItemsAndMaxX4_upscalesReached) while(x4_upscaleQueue.length > 0) x4_upscaleQueue.shift();
+                    if (x4_upscaleQueueStillHasItemsAndMaxX4_upscalesReached) while (x4_upscaleQueue.length > 0) x4_upscaleQueue.shift();
                     // check if we should continue looping
                     loop[0] = upscaleQueue.length > 0 && maxUpscalesCount < maxUpscales;
                     loop[1] = variationQueue.length > 0 && maxVariationsCount < maxVariations;
@@ -1560,7 +1574,7 @@ const printModifyOptionsMenu = (optType) => {
     console.log(chalk.white("0. Back"));
 }
 
-class runOptions{
+class RunOptions {
     constructor(
         upscaleAnswer = 0,
         promptAnswer = [],
@@ -1579,7 +1593,7 @@ class runOptions{
         addOption = "",
         option = "",
         removeTheme = "",
-        runningProcess = false ){
+        runningProcess = false) {
         this.upscaleAnswer = upscaleAnswer;
         this.promptAnswer = promptAnswer;
         this.generationAnswer = generationAnswer;
@@ -1617,7 +1631,7 @@ const modifyPrompts = async (runOpts) => {
     while (modifyPromptsMenuOption != "0") {
         printPromptsFile("prompts");
         // print the modify prompts menu
-        printModifyPromptsMenu();
+        printModifyOptionsMenu("prompt");
         // ask for the menu option
         modifyPromptsMenuOption = await askMenuOption((value) => {
             value = parseInt(value);
@@ -1682,7 +1696,7 @@ const modifyThemes = async (runOpts) => {
     while (modifyThemesMenuOption != "0") {
         printPromptsFile("themes");
         // print the modify themes menu
-        printModifyThemesMenu();
+        printModifyOptionsMenu("theme");
         // ask for the menu option
         modifyThemesMenuOption = await askMenuOption((value) => {
             value = parseInt(value);
@@ -1762,7 +1776,7 @@ const modifyOptions = async (runOpts) => {
     while (modifyOptionsMenuOption != "0") {
         printPromptsFile("options");
         // print the modify options menu
-        printModifyOptionsMenu();
+        printModifyOptionsMenu("option");
         // ask for the menu option
         modifyOptionsMenuOption = await askMenuOption((value) => {
             value = parseInt(value);
@@ -1897,33 +1911,505 @@ const modifyKeywordLists = async (runOpts) => {
         }
     }
 };
-// run
-async function run() {
-    // show script intro
-    let runOpts = new runOptions();
-    let menuOption = { OPTION: "" };
-    let promptAnswer = [];
-    promptAnswer.push("a cute cat");
-    let generationsAnswer = 4;
-    let upscaleAnswer = 0;
-    let variationAnswer = 0;
-    let zoomAnswer = 0;
-    let saveUpscalesAnswer = false;
-    let saveQuadsAnswer = false;
-    let mjX4UpscaleAnswer = false;
-    let themeKeywords;
-    let themeChoice;
-    let basicAnswers;
-    let theme;
-    let res;
-    let aiUpscale = false;
-    let promptChoice;
-    let addOption;
-    let option;
-    let removeTheme;
-    let runningProcess = false;
 
-    let runnerGo = false;
+const startThematicGenerationFromSavedTheme = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start thematic generation from saved theme");
+    // print the themes
+    printPromptsFile("themes");
+    // ask for the theme number
+    let themeChoice = await askMenuOption((value) => {
+        value = parseInt(value);
+        if (value >= 0 <= prompts.themes.length) return true;
+        else return false;
+    });
+    let basicAnswers = await askImageGenQuestions();
+    //split the theme keywords into an array
+    let themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
+    // create the theme object
+    let theme = {
+        keywords: themeKeywords,
+        style: prompts.themes[parseInt(themeChoice) - 1].style
+    };
+    basicAnswers.CHATGPTGENERATIONS = parseInt(basicAnswers.CHATGPTGENERATIONS);
+    if (basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
+    // generate the prompt from the theme
+    let res = await generatePromptFromThemKeywordsBatch(theme, basicAnswers.CHATGPTGENERATIONS);
+    if (res == null) return;
+    // find and replace all "-" in res with " " (space)
+    res = res.replaceAll("-", " ");
+    if (res.indexOf("{") == -1) {
+        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+        await waitSeconds(2);
+        return;
+    }
+    try {
+        res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+    }
+    catch (e) {
+        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+        await waitSeconds(2);
+        return;
+    }
+    console.log("");
+    //log the prompt
+    res.prompts.forEach((prompt, i) => {
+        if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+        else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+        else console.log(chalk.green((i + 1) + ":  " + prompt));
+    });
+    runOpts.promptAnswer = [];
+    res.prompts.forEach((prompt, i) => {
+        runOpts.promptAnswer.push(prompt);
+    });
+    // set the answers
+    runOpts.generationsAnswer = parseInt(basicAnswers.GENERATIONS);
+    runOpts.upscaleAnswer = parseInt(basicAnswers.UPSCALE);
+    runOpts.saveUpscalesAnswer = basicAnswers.SAVEUPSCALES;
+    runOpts.saveQuadsAnswer = basicAnswers.SAVEQUADS;
+    runOpts.variationAnswer = parseInt(basicAnswers.VARIATION);
+    runOpts.zoomAnswer = parseInt(basicAnswers.ZOOM);
+    runOpts.aiUpscale = basicAnswers.AIUPSCALE;
+    runOpts.mjX4UpscaleAnswer = basicAnswers.MJx4UPSCALE;
+    runOpts.runnerGo = true;
+}
+
+const startThematicGenerationFromQuestions = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start thematic generation from questions");
+    // ask theme questions
+    let themeQuestions = await askThemeQuestions();
+
+    //split the theme keywords into an array
+    let themeKeywords = themeQuestions.THEME.split(",");
+    // create the theme object
+    let theme = {
+        keywords: themeKeywords,
+        style: themeQuestions.STYLE
+    };
+    // generate the prompt from the theme
+    if (themeQuestions.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) themeQuestions.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
+    let res = await generatePromptFromThemKeywordsBatch(theme, themeQuestions.CHATGPTGENERATIONS);
+    if (res == null) return;
+    // find and replace all "-" in res with " " (space)
+    res = res.replaceAll("-", " ");
+    if (res.indexOf("{") == -1) {
+        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+        return;
+    }
+    try {
+        res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+    }
+    catch (e) {
+        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+        await waitSeconds(2);
+        return;
+    }
+    //log the prompt
+    console.log("");
+    res.prompts.forEach((prompt, i) => {
+        if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+        else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+        else console.log(chalk.green((i + 1) + ":  " + prompt));
+    });
+    // get the prompt from the user
+    //promptChoice = await askMenuOption();
+    // set the prompt answer
+    //promptAnswer = res.prompts[Math.min(parseInt(promptChoice.OPTION) - 1, res.prompts.length - 1)];
+    runOpts.promptAnswer = [];
+    res.prompts.forEach((prompt, i) => {
+        runOpts.promptAnswer.push(prompt);
+    });
+    // set the answers
+    runOpts.generationsAnswer = parseInt(themeQuestions.GENERATIONS);
+    runOpts.upscaleAnswer = parseInt(themeQuestions.UPSCALE);
+    runOpts.variationAnswer = parseInt(themeQuestions.VARIATION);
+    runOpts.saveUpscalesAnswer = themeQuestions.SAVEUPSCALES;
+    runOpts.saveQuadsAnswer = themeQuestions.SAVEQUADS;
+    runOpts.zoomAnswer = parseInt(themeQuestions.ZOOM);
+    runOpts.aiUpscale = themeQuestions.AIUPSCALE;
+    runOpts.runnerGo = true;
+};
+
+const startPromptGenerationFromSavedPrompt = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start prompt generation from saved prompt");
+    // print the prompts
+    printPromptsFile("prompts");
+    // ask for the prompt number
+    let promptChoice2 = await askMenuOption((value) => {
+        value = parseInt(value);
+        if (value >= 0 <= prompts.prompts.length) return true;
+        else return false;
+    });
+    // set the prompt answer
+    runOpts.promptAnswer[0] = prompts.prompts[parseInt(promptChoice2) - 1];
+    // ask basic questions
+    let basicAnswers = await askImageGenQuestions();
+    // set the answers
+    runOpts.generationsAnswer = parseInt(basicAnswers.GENERATIONS);
+    runOpts.upscaleAnswer = parseInt(basicAnswers.UPSCALE);
+    runOpts.variationAnswer = parseInt(basicAnswers.VARIATION);
+    runOpts.saveUpscalesAnswer = basicAnswers.SAVEUPSCALES;
+    runOpts.saveQuadsAnswer = basicAnswers.SAVEQUADS;
+    runOpts.zoomAnswer = parseInt(basicAnswers.ZOOM);
+    runOpts.aiUpscale = basicAnswers.AIUPSCALE;
+    runOpts.runnerGo = true;
+};
+
+const startPromptGenerationFromQuestions = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start prompt generation from questions");
+    // ask prompt questions
+    let promptQuestions = await askPromptQuestions();
+    // set the answers
+    runOpts.promptAnswer[0] = promptQuestions.PROMPT;
+    runOpts.generationsAnswer = parseInt(promptQuestions.GENERATIONS);
+    runOpts.upscaleAnswer = parseInt(promptQuestions.UPSCALE);
+    runOpts.variationAnswer = parseInt(promptQuestions.VARIATION);
+    runOpts.saveUpscalesAnswer = promptQuestions.SAVEUPSCALES;
+    runOpts.saveQuadsAnswer = promptQuestions.SAVEQUADS;
+    runOpts.zoomAnswer = parseInt(promptQuestions.ZOOM);
+    runOpts.aiUpscale = promptQuestions.AIUPSCALE;
+    runOpts.runnerGo = true;
+};
+
+const startInfiniteZoom = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start infinite zoom");
+    let infiniteZoomQuestions = await askInfiniteQuestions();
+    let folder2 = "";
+    if (infiniteZoomQuestions.CUSTOMFILENAME) {
+        let folderRes = await customFolderQuestion();
+        folder2 = folderRes.FOLDER;
+        // sanitize the folder name
+        folder2 = folder2.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    }
+    if (infiniteZoomQuestions.SENDTOCHATGPT) {
+        let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
+        res = res.replaceAll("\"", "");
+        midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2, infiniteZoomQuestions.AIUPSCALE);
+        runOpts.runningProcess = true;
+    } else {
+        midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2, infiniteZoomQuestions.AIUPSCALE);
+        runOpts.runningProcess = true;
+    }
+    runOpts.promptAnswer.length = 0;
+    runOpts.runnerGo = true;
+};
+
+const startInfiniteVariationUpscales = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start infinite variation upscales from prompt");
+    let infinitePromptQuestions = await askInfiniteQuestions();
+    let folder = "";
+    if (infinitePromptQuestions.CUSTOMFILENAME) {
+        let folderRes = await customFolderQuestion();
+        folder = folderRes.FOLDER;
+        // sanitize the folder name
+        folder = folder.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    }
+    if (infinitePromptQuestions.SENDTOCHATGPT) {
+        let res = await sendChatGPTPrompt(infinitePromptQuestions.PROMPT);
+        res = res.replaceAll("\"", "");
+        midjourney.infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, null, infinitePromptQuestions.AIUPSCALE);
+        runOpts.runningProcess = true;
+    } else {
+        midjourney.infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, null, infinitePromptQuestions.AIUPSCALE);
+        runOpts.runningProcess = true;
+    }
+    runOpts.promptAnswer.length = 0;
+    runOpts.runnerGo = true;
+};
+
+const runCommandsOnImageUUID = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Run commands on an image UUID");
+    let uuid = await input({ message: 'What is the image / job UUID?' });
+
+    let regex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/g;
+
+    if (!regex.test(uuid)) {
+        console.log("Invalid UUID");
+        await waitSeconds(2);
+        return;
+    }
+
+    let img = await midjourney.showCommand(uuid);
+    await waitSeconds(200);
+    if (img == null) return;
+
+    // ab608c1a-6156-41ec-be4f-a84b7239bac5
+
+    // need to figure out how to get the available commands for the particular uuid
+
+    // commands that could be run:
+    // 1. if the image is a quad, call for upscale of 1, 2, 3, or 4
+    // 2. if the image is a quad, call for variation of 1, 2, 3, or 4
+    // 3. if the image is a quad, call for a variation on the prompt
+    // 4. if the image is an upscale call for a weak variation
+    // 5. if the image is an upscale call for a strong variation
+    // 6. if the image is an upscale call for a 1.5x zoom
+    // 7. if the image is an upscale call for a 2x zoom
+    // 8. if the image is an upscale call for a 4x zoom
+    // 9. if the image is an upscale download / save and local AI upscale
+};
+
+const startGenerationBasedOnKeywordList = async (runOpts) => {
+    clearScreenBelowIntro();
+    console.log("Start geneation based on keyword list");
+
+    // ask for which keyword list to run against
+    let keywordListNames = [];
+    prompts.keyword_lists.forEach(list => {
+        let name = list.name;
+        keywordListNames.push({ name: name, value: name });
+    });
+    let keywordListAnswer = await select({ message: 'Which keyword list?', choices: keywordListNames });
+    let connectMethod = await select({
+        message: 'How do you want to connect your prompt and list items?',
+        choices: [
+            new Separator(" = For Artists/Illustrators/Creators = "),
+            { name: "in the style of...", value: "in the style of" },
+            { name: "as if created by...", value: "as if created by" },
+            { name: "Inspired by...", value: "Inspired by" },
+            { name: "Channeling the essence of...", value: "Channeling the essence of" },
+            { name: "Mimicking the artistry of...", value: "Mimicking the artistry of" },
+            { name: "Through the lens of...", value: "Through the lens of" },
+            { name: "Echoing the aesthetics of...", value: "Echoing the aesthetics of" },
+            { name: "Infused with the creativity of...", value: "Infused with the creativity of" },
+            { name: "Blending the styles of...", value: "Blending the styles of" },
+            new Separator(" = For Different Themes / Genres = "),
+            { name: "Enveloped in...", value: "Enveloped in" },
+            { name: "Radiating the vibe of...", value: "Radiating the vibe of" },
+            { name: "Embodied with...", value: "Embodied with" },
+            { name: "Suffused with...", value: "Suffused with" },
+            { name: "Immersed in the atmosphere of...", value: "Immersed in the atmosphere of" },
+            { name: "Incorporating elements of...", value: "Incorporating elements of" },
+            { name: "Infused with the spirit of...", value: "Infused with the spirit of" },
+            { name: "Evoking the feeling of...", value: "Evoking the feeling of" },
+            { name: "Capturing the essence of...", value: "Capturing the essence of" },
+            { name: "Conveying the mood of...", value: "Conveying the mood of" },
+            new Separator(" = For Time Periods = "),
+            { name: "Transported to the era of...", value: "Transported to the era of" },
+            { name: "In the tradition of...", value: "In the tradition of" },
+            { name: "Capturing the zeitgeist of...", value: "Capturing the zeitgeist of" },
+            { name: "Anchored in the period of...", value: "Anchored in the period of" },
+            { name: "Reimagined in the times of...", value: "Reimagined in the times of" },
+            new Separator(" = For Locations = "),
+            { name: "Springing from the lands of...", value: "Springing from the lands of" },
+            { name: "Imbued with the spirit of...", value: "Imbued with the spirit of" },
+            { name: "Harboring the mystique of...", value: "Harboring the mystique of" },
+            { name: "Crafted with the allure of...", value: "Crafted with the allure of" },
+            { name: "Breathing the air of...", value: "Breathing the air of" },
+            new Separator(" = For Materials / Textures = "),
+            { name: "Cloaked in the texture of...", value: "Cloaked in the texture of" },
+            { name: "Fashioned with...", value: "Fashioned with" },
+            { name: "Ornamented by the materials of...", value: "Ornamented by the materials of" },
+            { name: "Interplaying with the substances of...", value: "Interplaying with the substances of" },
+            { name: "Revealing in the medium of...", value: "Revealing in the medium of" },
+            new Separator(" = For Mood / Emotions = "),
+            { name: "Steeped in the emotion of...", value: "Steeped in the emotion of" },
+            { name: "Resonating with the feeling of...", value: "Resonating with the feeling of" },
+            { name: "Awash with the sentiment of...", value: "Awash with the sentiment of" },
+            { name: "Drenched in the mood of...", value: "Drenched in the mood of" },
+            { name: "Tinged with the emotional palette of...", value: "Tinged with the emotional palette of" },
+            new Separator(" = For Colors = "),
+            { name: "Drenched in the color of...", value: "Drenched in the color of" },
+            { name: "Tinged with the color of...", value: "Tinged with the color of" },
+            { name: "Washed in the color of...", value: "Washed in the color of" },
+            { name: "Saturated with the color of...", value: "Saturated with the color of" },
+            { name: "Immersed in the color of...", value: "Immersed in the color of" },
+            new Separator(" = For Shapes = "),
+            { name: "Shaped like...", value: "Shaped like" },
+            { name: "Formed like...", value: "Formed like" },
+            { name: "Structured like...", value: "Structured like" },
+            { name: "Outlined like...", value: "Outlined like" },
+            { name: "Outlined like...", value: "Outlined like" },
+            new Separator(" = For Objects = "),
+            { name: "Adorned with...", value: "Adorned with" },
+            { name: "Decorated with...", value: "Decorated with" },
+            { name: "Embellished with...", value: "Embellished with" },
+            { name: "Ornamented with...", value: "Ornamented with" },
+            { name: "Fashioned with...", value: "Fashioned with" },
+            { name: "Crafted with...", value: "Crafted with" },
+            { name: "Constructed with...", value: "Constructed with" },
+            { name: "Made with...", value: "Made with" },
+            { name: "Built with...", value: "Built with" },
+            { name: "Composed of...", value: "Composed of" },
+            new Separator(" = For People = "),
+            { name: "In the image of...", value: "In the image of" },
+            { name: "In the likeness of...", value: "In the likeness of" },
+            { name: "Resembling...", value: "Resembling" },
+            { name: "Depicting...", value: "Depicting" },
+            { name: "Portraying...", value: "Portraying" },
+            new Separator(" = For Techniques = "),
+            { name: "Created with the technique of...", value: "Created with the technique of" },
+            { name: "Using the technique of...", value: "Using the technique of" },
+            { name: "Using the method of...", value: "Using the method of" },
+            new Separator(" = For Lighting = "),
+            { name: "Illuminated by...", value: "Illuminated by" },
+            new Separator(" = For Camera Effects = "),
+            { name: "Captured with the effect of...", value: "Captured with the effect of" },
+            { name: "Captured with the lens of...", value: "Captured with the lens of" },
+            { name: "Captured with the filter of...", value: "Captured with the filter of" },
+            { name: "As if shot with the effect of...", value: "As if shot with the effect of" }
+        ]
+    });
+    let listIndex = 0;
+    for (let list_i = 0; list_i < keywordListNames.length; list_i++) {
+        if (keywordListNames[list_i].value == keywordListAnswer) listIndex = list_i;
+    }
+    let keywordListArray = prompts.keyword_lists[listIndex].keywords;
+
+    // ask for how many times to run each combination
+    let runCount = await input({ message: 'How many times to run each combination?', default: "1" });
+
+    // ask basic questions (save, local upscaling, save quads, etc)
+    let saveQuads = await confirm({ message: 'Save quads?', default: "y" });
+    let callForUpscales = await confirm({ message: 'Call for upscales?', default: "y" });
+    let saveUpscales = false;
+    let localUpscale = false;
+    if (callForUpscales) {
+        saveUpscales = await confirm({ message: 'Save upscales?', default: "y" });
+        if (saveUpscales) {
+            localUpscale = await confirm({ message: 'Run local AI upscale?', default: "y" });
+        }
+    }
+    let callForx4Upscales = await confirm({ message: 'Call for x4 upscales?', default: "y" });
+
+    // ask what to run the list against (prompt or file)
+    let whatToRunAgainst = await select({ message: 'What to run the list against?', choices: [{ name: "Custom prompt", value: "custom" }, { name: "Saved Prompt", value: "saved" }, { name: "Generate Prompt", value: "generate" }, { name: "File", value: "file" }] });
+    let prompt = "";
+    // if prompt, ask if load prompt or type prompt
+    if (whatToRunAgainst == "custom") {
+        prompt = await input({ message: 'What is the prompt?' });
+    } else if (whatToRunAgainst == "saved") {
+        // print the prompts
+        printPromptsFile("prompts");
+        // ask for the prompt number
+        let promptChoice2 = await askMenuOption((value) => {
+            value = parseInt(value);
+            if (value >= 0 <= prompts.prompts.length) return true;
+            else return false;
+        });
+        // set the prompt answer
+        prompt = prompts.prompts[parseInt(promptChoice2) - 1];
+    } else if (whatToRunAgainst == "generate") {
+        // ask theme questions
+        let themeQuestions = await askThemeQuestionsShort();
+        //split the theme keywords into an array
+        let themeKeywords = themeQuestions.THEME.split(",");
+        // create the theme object
+        let theme = {
+            keywords: themeKeywords,
+            style: themeQuestions.STYLE
+        };
+        let chatGPTGenerations = await input({ message: 'How many prompts do you want to generate with ChatGPT? (max ' + userConfig.max_ChatGPT_Responses + ')', default: "1" });
+        chatGPTGenerations = parseInt(chatGPTGenerations);
+        // generate the prompt from the theme
+        if (chatGPTGenerations > userConfig.max_ChatGPT_Responses) chatGPTGenerations = userConfig.max_ChatGPT_Responses;
+        let res = await generatePromptFromThemKeywordsBatch(theme, chatGPTGenerations);
+        if (res == null) return;
+        // find and replace all "-" in res with " " (space)
+        res = res.replaceAll("-", " ");
+        if (res.indexOf("{") == -1) {
+            console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+            return;
+        }
+        try {
+            res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
+        }
+        catch (e) {
+            console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
+            await waitSeconds(2);
+            return;
+        }
+        //log the prompt
+        console.log("");
+        res.prompts.forEach((prompt, i) => {
+            if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
+            else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
+            else console.log(chalk.green((i + 1) + ":  " + prompt));
+        });
+        // get the prompt from the user
+        let promptChoice = await askMenuOption();
+        // set the prompt answer
+        prompt = res.prompts[Math.min(parseInt(promptChoice) - 1, res.prompts.length - 1)];
+        console.log({ prompt });
+    } else if (whatToRunAgainst == "file") {
+        // if file, ask for file
+        if (!fs.existsSync("./inputFiles")) fs.mkdirSync("./inputFiles");
+        let fileList = fs.readdirSync("./inputFiles");
+        fileList.forEach((file, i) => {
+            fileList[i] = { name: file.substring(file.lastIndexOf("/")), value: file };
+        });
+        let file = await select({ message: 'Which file?', choices: fileList });
+        file = "./inputFiles/" + file;
+        console.log(file);
+        let confirmUpload = await confirm({ message: 'Are you sure you want to upload this file?', default: "y" });
+        let url = "";
+        if (confirmUpload) {
+            let jobInitObj = discordUploader.uploadFile(file, userConfig.channel_id);
+            jobInitObj.promise.then((res) => {
+                console.log("Upload complete!");
+                url = res;
+            }).catch((e) => {
+                console.log(e);
+            });
+            // wait for upload to complete
+            let waitCount = 0;
+            while (url == "") {
+                waitCount++;
+                process.stdout.write(".");
+                if (waitCount > 10) break; // wait for 5 seconds max
+                await waitSeconds(0.5);
+            }
+
+            // if the upload failed, use a random dog image instead
+            if (url == "") {
+                console.log("Upload failed! Using a random dog image instead.");
+                let dog = await fetch('https://dog.ceo/api/breeds/image/random');
+                let dogJson = await dog.json();
+                url = dogJson.message;
+            }
+            prompt = url + " ";
+        } else {
+            return;
+        }
+    }
+
+    runOpts.promptAnswer = [];
+    keywordListArray.forEach(keyword => {
+        // add the keyword to the end of the prompt
+        if (prompt.indexOf(" --") == -1) runOpts.promptAnswer.push(prompt + connectMethod + ": " + keyword);
+        else runOpts.promptAnswer.push(prompt.substring(0, prompt.indexOf(" --")) + connectMethod + ": " + keyword);
+        // if the prompt had a weight value in it, add one to end with a slightly higher weight
+        if (prompt.indexOf("::") > -1) {
+            let value = prompt.substring(prompt.lastIndexOf("::") + 2, prompt.lastIndexOf("::") + 7);
+            value = value.substring(0, value.indexOf(" "));
+            value = parseInt(value);
+            if (value > 0) {
+                runOpts.promptAnswer[runOpts.promptAnswer.length - 1] += " ::" + Math.floor(value * 1.01);
+            }
+        }
+    });
+
+    runOpts.generationsAnswer = runCount;
+    runOpts.upscaleAnswer = callForUpscales ? "4" : "0";
+    runOpts.saveUpscalesAnswer = saveUpscales;
+    runOpts.saveQuadsAnswer = saveQuads;
+    runOpts.variationAnswer = 0;
+    runOpts.zoomAnswer = 0
+    runOpts.aiUpscale = localUpscale;
+    runOpts.mjX4UpscaleAnswer = callForx4Upscales;
+    runOpts.runnerGo = true;
+};
+
+async function main() {
+    // show script intro
+    let runOpts = new RunOptions();
+    let menuOption = "";
 
     while (menuOption != "0") {
         MJloggerEnabled = false;
@@ -1937,498 +2423,48 @@ async function run() {
         });
         switch (menuOption) {
             case "1":  // show loaded themes, prompts, and options
-                showLoadedThemesPromptsOptions();
+                await showLoadedThemesPromptsOptions();
                 break;
             case "2":  // modify prompts
-                modifyPrompts(runOpts);
+                await modifyPrompts(runOpts);
                 break;
             case "3": // modify themes
-                modifyThemes(runOpts);
+                await modifyThemes(runOpts);
                 break;
             case "4":  // modify options
-                modifyOptions(runopts);
+                await modifyOptions(runOpts);
                 break;
             case "5":  // modify keyword lists
-                modifyKeywordLists(runOpts);
+                await modifyKeywordLists(runOpts);
                 break;
             case "6":  // start thematic generation from saved theme
-            const startThematicGenerationFromSavedTheme = async (runOpts) => {
-                clearScreenBelowIntro();
-                console.log("Start thematic generation from saved theme");
-                // print the themes
-                printPromptsFile("themes");
-                // ask for the theme number
-                let themeChoice = await askMenuOption((value) => {
-                    value = parseInt(value);
-                    if (value >= 0 <= prompts.themes.length) return true;
-                    else return false;
-                });
-                runOpts.basicAnswers = await askImageGenQuestions();
-                //split the theme keywords into an array
-                let themeKeywords = prompts.themes[parseInt(themeChoice) - 1].keywords;
-                // create the theme object
-                let theme = {
-                    keywords: themeKeywords,
-                    style: prompts.themes[parseInt(themeChoice) - 1].style
-                };
-                runOpts.basicAnswers.CHATGPTGENERATIONS = parseInt(runOpts.basicAnswers.CHATGPTGENERATIONS);
-                if (runOpts.basicAnswers.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) runOpts.basicAnswers.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
-                // generate the prompt from the theme
-                res = await generatePromptFromThemKeywordsBatch(theme, runOpts.basicAnswers.CHATGPTGENERATIONS);
-                if (res == null) break;
-                // find and replace all "-" in res with " " (space)
-                res = res.replaceAll("-", " ");
-                if (res.indexOf("{") == -1) {
-                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                    await waitSeconds(2);
-                    break;
-                }
-                try {
-                    res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
-                }
-                catch (e) {
-                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                    await waitSeconds(2);
-                    break;
-                }
-                console.log("");
-                //log the prompt
-                res.prompts.forEach((prompt, i) => {
-                    if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
-                    else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
-                    else console.log(chalk.green((i + 1) + ":  " + prompt));
-                });
-                promptAnswer = [];
-                res.prompts.forEach((prompt, i) => {
-                    promptAnswer.push(prompt);
-                });
-                // set the answers
-                generationsAnswer = parseInt(basicAnswers.GENERATIONS);
-                upscaleAnswer = parseInt(basicAnswers.UPSCALE);
-                saveUpscalesAnswer = basicAnswers.SAVEUPSCALES;
-                saveQuadsAnswer = basicAnswers.SAVEQUADS;
-                variationAnswer = parseInt(basicAnswers.VARIATION);
-                zoomAnswer = parseInt(basicAnswers.ZOOM);
-                aiUpscale = basicAnswers.AIUPSCALE;
-                mjX4UpscaleAnswer = basicAnswers.MJx4UPSCALE;
-                runnerGo = true;
+                await startThematicGenerationFromSavedTheme(runOpts);
                 break;
             case "7": // start thematic generation from questions
-                clearScreenBelowIntro();
-                console.log("Start thematic generation from questions");
-                // ask theme questions
-                let themeQuestions = await askThemeQuestions();
-
-                //split the theme keywords into an array
-                themeKeywords = themeQuestions.THEME.split(",");
-                // create the theme object
-                theme = {
-                    keywords: themeKeywords,
-                    style: themeQuestions.STYLE
-                };
-                // generate the prompt from the theme
-                if (themeQuestions.CHATGPTGENERATIONS > userConfig.max_ChatGPT_Responses) themeQuestions.CHATGPTGENERATIONS = userConfig.max_ChatGPT_Responses;
-                res = await generatePromptFromThemKeywordsBatch(theme, themeQuestions.CHATGPTGENERATIONS);
-                if (res == null) break;
-                // find and replace all "-" in res with " " (space)
-                res = res.replaceAll("-", " ");
-                if (res.indexOf("{") == -1) {
-                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                    break;
-                }
-                try {
-                    res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
-                }
-                catch (e) {
-                    console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                    await waitSeconds(2);
-                    break;
-                }
-                //log the prompt
-                console.log("");
-                res.prompts.forEach((prompt, i) => {
-                    if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
-                    else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
-                    else console.log(chalk.green((i + 1) + ":  " + prompt));
-                });
-                // get the prompt from the user
-                //promptChoice = await askMenuOption();
-                // set the prompt answer
-                //promptAnswer = res.prompts[Math.min(parseInt(promptChoice.OPTION) - 1, res.prompts.length - 1)];
-                promptAnswer = [];
-                res.prompts.forEach((prompt, i) => {
-                    promptAnswer.push(prompt);
-                });
-                // set the answers
-                generationsAnswer = parseInt(themeQuestions.GENERATIONS);
-                upscaleAnswer = parseInt(themeQuestions.UPSCALE);
-                variationAnswer = parseInt(themeQuestions.VARIATION);
-                saveUpscalesAnswer = themeQuestions.SAVEUPSCALES;
-                saveQuadsAnswer = themeQuestions.SAVEQUADS;
-                zoomAnswer = parseInt(themeQuestions.ZOOM);
-                aiUpscale = themeQuestions.AIUPSCALE;
-                runnerGo = true;
+                await startThematicGenerationFromQuestions(runOpts);
                 break;
             case "8": // start prompt generation from saved prompt
-                clearScreenBelowIntro();
-                console.log("Start prompt generation from saved prompt");
-                // print the prompts
-                printPromptsFile("prompts");
-                // ask for the prompt number
-                let promptChoice2 = await askMenuOption((value) => {
-                    value = parseInt(value);
-                    if (value >= 0 <= prompts.prompts.length) return true;
-                    else return false;
-                });
-                // set the prompt answer
-                promptAnswer[0] = prompts.prompts[parseInt(promptChoice2) - 1];
-                // ask basic questions
-                basicAnswers = await askImageGenQuestions();
-                // set the answers
-                generationsAnswer = parseInt(basicAnswers.GENERATIONS);
-                upscaleAnswer = parseInt(basicAnswers.UPSCALE);
-                variationAnswer = parseInt(basicAnswers.VARIATION);
-                saveUpscalesAnswer = basicAnswers.SAVEUPSCALES;
-                saveQuadsAnswer = basicAnswers.SAVEQUADS;
-                zoomAnswer = parseInt(basicAnswers.ZOOM);
-                aiUpscale = basicAnswers.AIUPSCALE;
-                runnerGo = true;
+                await startPromptGenerationFromSavedPrompt(runOpts);
                 break;
             case "9": // start prompt generation from questions
-                clearScreenBelowIntro();
-                console.log("Start prompt generation from questions");
-                // ask prompt questions
-                let promptQuestions = await askPromptQuestions();
-                // set the answers
-                promptAnswer[0] = promptQuestions.PROMPT;
-                generationsAnswer = parseInt(promptQuestions.GENERATIONS);
-                upscaleAnswer = parseInt(promptQuestions.UPSCALE);
-                variationAnswer = parseInt(promptQuestions.VARIATION);
-                saveUpscalesAnswer = promptQuestions.SAVEUPSCALES;
-                saveQuadsAnswer = promptQuestions.SAVEQUADS;
-                zoomAnswer = parseInt(promptQuestions.ZOOM);
-                aiUpscale = promptQuestions.AIUPSCALE;
-                runnerGo = true;
+                await startPromptGenerationFromQuestions(runOpts);
                 break;
             case "10": // start prompt generation from last questions
                 clearScreenBelowIntro();
                 console.log("Start prompt generation from last questions");
-                runnerGo = true;
+                runOpts.runnerGo = true;
                 break;
             case "11": // start infinite zoom
-                clearScreenBelowIntro();
-                console.log("Start infinite zoom");
-                let infiniteZoomQuestions = await askInfiniteQuestions();
-                let folder2 = "";
-                if (infiniteZoomQuestions.CUSTOMFILENAME) {
-                    let folderRes = await customFolderQuestion();
-                    folder2 = folderRes.FOLDER;
-                    // sanitize the folder name
-                    folder2 = folder2.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                }
-                if (infiniteZoomQuestions.SENDTOCHATGPT) {
-                    let res = await sendChatGPTPrompt(infiniteZoomQuestions.PROMPT);
-                    res = res.replaceAll("\"", "");
-                    midjourney.infiniteZoom(res, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2, infiniteZoomQuestions.AIUPSCALE);
-                    runningProcess = true;
-                } else {
-                    midjourney.infiniteZoom(infiniteZoomQuestions.PROMPT, infiniteZoomQuestions.SAVEQUADS, infiniteZoomQuestions.CUSTOMFILENAME, folder2, infiniteZoomQuestions.AIUPSCALE);
-                    runningProcess = true;
-                }
-                promptAnswer.length = 0;
-                runnerGo = true;
+                await startInfiniteZoom(runOpts);
                 break;
             case "12": // start infinite variation upscales from prompt
-                clearScreenBelowIntro();
-                console.log("Start infinite variation upscales from prompt");
-                let infinitePromptQuestions = await askInfiniteQuestions();
-                let folder = "";
-                if (infinitePromptQuestions.CUSTOMFILENAME) {
-                    let folderRes = await customFolderQuestion();
-                    folder = folderRes.FOLDER;
-                    // sanitize the folder name
-                    folder = folder.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-                }
-                if (infinitePromptQuestions.SENDTOCHATGPT) {
-                    let res = await sendChatGPTPrompt(infinitePromptQuestions.PROMPT);
-                    res = res.replaceAll("\"", "");
-                    midjourney.infinitePromptVariationUpscales(res, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, null, infinitePromptQuestions.AIUPSCALE);
-                    runningProcess = true;
-                } else {
-                    midjourney.infinitePromptVariationUpscales(infinitePromptQuestions.PROMPT, infinitePromptQuestions.SAVEQUADS, infinitePromptQuestions.CUSTOMFILENAME, folder, null, infinitePromptQuestions.AIUPSCALE);
-                    runningProcess = true;
-                }
-                promptAnswer.length = 0;
-                runnerGo = true;
+                await startInfiniteVariationUpscales(runOpts);
                 break;
             case "13": // run commands on an image UUID
-                clearScreenBelowIntro();
-                console.log("Run commands on an image UUID");
-                let uuid = await input({ message: 'What is the image / job UUID?' });
-                // need to figure out how to get the available commands for the particular uuid
-
-                // commands that could be run:
-                // 1. if the image is a quad, call for upscale of 1, 2, 3, or 4
-                // 2. if the image is a quad, call for variation of 1, 2, 3, or 4
-                // 3. if the image is a quad, call for a variation on the prompt
-                // 4. if the image is an upscale call for a weak variation
-                // 5. if the image is an upscale call for a strong variation
-                // 6. if the image is an upscale call for a 1.5x zoom
-                // 7. if the image is an upscale call for a 2x zoom
-                // 8. if the image is an upscale call for a 4x zoom
-                // 9. if the image is an upscale download / save and local AI upscale
-
+                await runCommandsOnImageUUID(runOpts);
                 break;
             case "14": // start generation based on keyword list
-                clearScreenBelowIntro();
-                console.log("Start geneation based on keyword list");
-
-                // ask for which keyword list to run against
-                let keywordListNames = [];
-                prompts.keyword_lists.forEach(list => {
-                    let name = list.name;
-                    keywordListNames.push({ name: name, value: name });
-                });
-                let keywordListAnswer = await select({ message: 'Which keyword list?', choices: keywordListNames });
-                let connectMethod = await select({
-                    message: 'How do you want to connect your prompt and list items?',
-                    choices: [
-                        new Separator(" = For Artists/Illustrators/Creators = "),
-                        { name: "in the style of...", value: "in the style of" },
-                        { name: "as if created by...", value: "as if created by" },
-                        { name: "Inspired by...", value: "Inspired by" },
-                        { name: "Channeling the essence of...", value: "Channeling the essence of" },
-                        { name: "Mimicking the artistry of...", value: "Mimicking the artistry of" },
-                        { name: "Through the lens of...", value: "Through the lens of" },
-                        { name: "Echoing the aesthetics of...", value: "Echoing the aesthetics of" },
-                        { name: "Infused with the creativity of...", value: "Infused with the creativity of" },
-                        { name: "Blending the styles of...", value: "Blending the styles of" },
-                        new Separator(" = For Different Themes / Genres = "),
-                        { name: "Enveloped in...", value: "Enveloped in" },
-                        { name: "Radiating the vibe of...", value: "Radiating the vibe of" },
-                        { name: "Embodied with...", value: "Embodied with" },
-                        { name: "Suffused with...", value: "Suffused with" },
-                        { name: "Immersed in the atmosphere of...", value: "Immersed in the atmosphere of" },
-                        { name: "Incorporating elements of...", value: "Incorporating elements of" },
-                        { name: "Infused with the spirit of...", value: "Infused with the spirit of" },
-                        { name: "Evoking the feeling of...", value: "Evoking the feeling of" },
-                        { name: "Capturing the essence of...", value: "Capturing the essence of" },
-                        { name: "Conveying the mood of...", value: "Conveying the mood of" },
-                        new Separator(" = For Time Periods = "),
-                        { name: "Transported to the era of...", value: "Transported to the era of" },
-                        { name: "In the tradition of...", value: "In the tradition of" },
-                        { name: "Capturing the zeitgeist of...", value: "Capturing the zeitgeist of" },
-                        { name: "Anchored in the period of...", value: "Anchored in the period of" },
-                        { name: "Reimagined in the times of...", value: "Reimagined in the times of" },
-                        new Separator(" = For Locations = "),
-                        { name: "Springing from the lands of...", value: "Springing from the lands of" },
-                        { name: "Imbued with the spirit of...", value: "Imbued with the spirit of" },
-                        { name: "Harboring the mystique of...", value: "Harboring the mystique of" },
-                        { name: "Crafted with the allure of...", value: "Crafted with the allure of" },
-                        { name: "Breathing the air of...", value: "Breathing the air of" },
-                        new Separator(" = For Materials / Textures = "),
-                        { name: "Cloaked in the texture of...", value: "Cloaked in the texture of" },
-                        { name: "Fashioned with...", value: "Fashioned with" },
-                        { name: "Ornamented by the materials of...", value: "Ornamented by the materials of" },
-                        { name: "Interplaying with the substances of...", value: "Interplaying with the substances of" },
-                        { name: "Revealing in the medium of...", value: "Revealing in the medium of" },
-                        new Separator(" = For Mood / Emotions = "),
-                        { name: "Steeped in the emotion of...", value: "Steeped in the emotion of" },
-                        { name: "Resonating with the feeling of...", value: "Resonating with the feeling of" },
-                        { name: "Awash with the sentiment of...", value: "Awash with the sentiment of" },
-                        { name: "Drenched in the mood of...", value: "Drenched in the mood of" },
-                        { name: "Tinged with the emotional palette of...", value: "Tinged with the emotional palette of" },
-                        new Separator(" = For Colors = "),
-                        { name: "Drenched in the color of...", value: "Drenched in the color of" },
-                        { name: "Tinged with the color of...", value: "Tinged with the color of" },
-                        { name: "Washed in the color of...", value: "Washed in the color of" },
-                        { name: "Saturated with the color of...", value: "Saturated with the color of" },
-                        { name: "Immersed in the color of...", value: "Immersed in the color of" },
-                        new Separator(" = For Shapes = "),
-                        { name: "Shaped like...", value: "Shaped like" },
-                        { name: "Formed like...", value: "Formed like" },
-                        { name: "Structured like...", value: "Structured like" },
-                        { name: "Outlined like...", value: "Outlined like" },
-                        { name: "Outlined like...", value: "Outlined like" },
-                        new Separator(" = For Objects = "),
-                        { name: "Adorned with...", value: "Adorned with" },
-                        { name: "Decorated with...", value: "Decorated with" },
-                        { name: "Embellished with...", value: "Embellished with" },
-                        { name: "Ornamented with...", value: "Ornamented with" },
-                        { name: "Fashioned with...", value: "Fashioned with" },
-                        { name: "Crafted with...", value: "Crafted with" },
-                        { name: "Constructed with...", value: "Constructed with" },
-                        { name: "Made with...", value: "Made with" },
-                        { name: "Built with...", value: "Built with" },
-                        { name: "Composed of...", value: "Composed of" },
-                        new Separator(" = For People = "),
-                        { name: "In the image of...", value: "In the image of" },
-                        { name: "In the likeness of...", value: "In the likeness of" },
-                        { name: "Resembling...", value: "Resembling" },
-                        { name: "Depicting...", value: "Depicting" },
-                        { name: "Portraying...", value: "Portraying" },
-                        new Separator(" = For Techniques = "),
-                        { name: "Created with the technique of...", value: "Created with the technique of" },
-                        { name: "Using the technique of...", value: "Using the technique of" },
-                        { name: "Using the method of...", value: "Using the method of" },
-                        new Separator(" = For Lighting = "),
-                        { name: "Illuminated by...", value: "Illuminated by" },
-                        new Separator(" = For Camera Effects = "),
-                        { name: "Captured with the effect of...", value: "Captured with the effect of" },
-                        { name: "Captured with the lens of...", value: "Captured with the lens of" },
-                        { name: "Captured with the filter of...", value: "Captured with the filter of" },
-                        { name: "As if shot with the effect of...", value: "As if shot with the effect of" }
-                    ]
-                });
-                let listIndex = 0;
-                for (let list_i = 0; list_i < keywordListNames.length; list_i++) {
-                    if (keywordListNames[list_i].value == keywordListAnswer) listIndex = list_i;
-                }
-                let keywordListArray = prompts.keyword_lists[listIndex].keywords;
-
-                // ask for how many times to run each combination
-                let runCount = await input({ message: 'How many times to run each combination?', default: "1" });
-
-                // ask basic questions (save, local upscaling, save quads, etc)
-                let saveQuads = await confirm({ message: 'Save quads?', default: "y" });
-                let callForUpscales = await confirm({ message: 'Call for upscales?', default: "y" });
-                let saveUpscales = false;
-                let localUpscale = false;
-                if (callForUpscales) {
-                    saveUpscales = await confirm({ message: 'Save upscales?', default: "y" });
-                    if (saveUpscales) {
-                        localUpscale = await confirm({ message: 'Run local AI upscale?', default: "y" });
-                    }
-                }
-                let callForx4Upscales = await confirm({ message: 'Call for x4 upscales?', default: "y" });
-
-                // ask what to run the list against (prompt or file)
-                let whatToRunAgainst = await select({ message: 'What to run the list against?', choices: [{ name: "Custom prompt", value: "custom" }, { name: "Saved Prompt", value: "saved" }, { name: "Generate Prompt", value: "generate" }, { name: "File", value: "file" }] });
-                let prompt = "";
-                // if prompt, ask if load prompt or type prompt
-                if (whatToRunAgainst == "custom") {
-                    prompt = await input({ message: 'What is the prompt?' });
-                } else if (whatToRunAgainst == "saved") {
-                    // print the prompts
-                    printPromptsFile("prompts");
-                    // ask for the prompt number
-                    let promptChoice2 = await askMenuOption((value) => {
-                        value = parseInt(value);
-                        if (value >= 0 <= prompts.prompts.length) return true;
-                        else return false;
-                    });
-                    // set the prompt answer
-                    prompt = prompts.prompts[parseInt(promptChoice2) - 1];
-                } else if (whatToRunAgainst == "generate") {
-                    // ask theme questions
-                    let themeQuestions = await askThemeQuestionsShort();
-                    //split the theme keywords into an array
-                    themeKeywords = themeQuestions.THEME.split(",");
-                    // create the theme object
-                    theme = {
-                        keywords: themeKeywords,
-                        style: themeQuestions.STYLE
-                    };
-                    let chatGPTGenerations = await input({ message: 'How many prompts do you want to generate with ChatGPT? (max ' + userConfig.max_ChatGPT_Responses + ')', default: "1" });
-                    chatGPTGenerations = parseInt(chatGPTGenerations);
-                    // generate the prompt from the theme
-                    if (chatGPTGenerations > userConfig.max_ChatGPT_Responses) chatGPTGenerations = userConfig.max_ChatGPT_Responses;
-                    res = await generatePromptFromThemKeywordsBatch(theme, chatGPTGenerations);
-                    if (res == null) break;
-                    // find and replace all "-" in res with " " (space)
-                    res = res.replaceAll("-", " ");
-                    if (res.indexOf("{") == -1) {
-                        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                        break;
-                    }
-                    try {
-                        res = JSON.parse(res.substring(res.indexOf("{"), res.indexOf("}") + 1));
-                    }
-                    catch (e) {
-                        console.log("Error: ChatGPT returned a badly formatted string. Please try again.");
-                        await waitSeconds(2);
-                        break;
-                    }
-                    //log the prompt
-                    console.log("");
-                    res.prompts.forEach((prompt, i) => {
-                        if (parseInt(prompt.substring(0, 1)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(2)));
-                        else if (parseInt(prompt.substring(0, 2)) == i + 1) console.log(chalk.green((i + 1) + ":  " + prompt.substring(3)));
-                        else console.log(chalk.green((i + 1) + ":  " + prompt));
-                    });
-                    // get the prompt from the user
-                    promptChoice = await askMenuOption();
-                    // set the prompt answer
-                    prompt = res.prompts[Math.min(parseInt(promptChoice) - 1, res.prompts.length - 1)];
-                    console.log({ prompt });
-                } else if (whatToRunAgainst == "file") {
-                    // if file, ask for file
-                    if (!fs.existsSync("./inputFiles")) fs.mkdirSync("./inputFiles");
-                    let fileList = fs.readdirSync("./inputFiles");
-                    fileList.forEach((file, i) => {
-                        fileList[i] = { name: file.substring(file.lastIndexOf("/")), value: file };
-                    });
-                    let file = await select({ message: 'Which file?', choices: fileList });
-                    file = "./inputFiles/" + file;
-                    console.log(file);
-                    let confirmUpload = await confirm({ message: 'Are you sure you want to upload this file?', default: "y" });
-                    let url = "";
-                    if (confirmUpload) {
-                        let jobInitObj = discordUploader.uploadFile(file, userConfig.channel_id);
-                        jobInitObj.promise.then((res) => {
-                            console.log("Upload complete!");
-                            url = res;
-                        }).catch((e) => {
-                            console.log(e);
-                        });
-                        // wait for upload to complete
-                        let waitCount = 0;
-                        while (url == "") {
-                            waitCount++;
-                            process.stdout.write(".");
-                            if (waitCount > 10) break; // wait for 5 seconds max
-                            await waitSeconds(0.5);
-                        }
-
-                        // if the upload failed, use a random dog image instead
-                        if (url == "") {
-                            console.log("Upload failed! Using a random dog image instead.");
-                            let dog = await fetch('https://dog.ceo/api/breeds/image/random');
-                            let dogJson = await dog.json();
-                            url = dogJson.message;
-                        }
-                        prompt = url + " ";
-                    } else {
-                        break;
-                    }
-                }
-
-                promptAnswer = [];
-                keywordListArray.forEach(keyword => {
-                    // add the keyword to the end of the prompt
-                    if (prompt.indexOf(" --") == -1) promptAnswer.push(prompt + connectMethod + ": " + keyword);
-                    else promptAnswer.push(prompt.substring(0, prompt.indexOf(" --")) + connectMethod + ": " + keyword);
-                    // if the prompt had a weight value in it, add one to end with a slightly higher weight
-                    if (prompt.indexOf("::") > -1) {
-                        let value = prompt.substring(prompt.lastIndexOf("::") + 2, prompt.lastIndexOf("::") + 7);
-                        value = value.substring(0, value.indexOf(" "));
-                        value = parseInt(value);
-                        if (value > 0) {
-                            promptAnswer[promptAnswer.length - 1] += " ::" + Math.floor(value * 1.01);
-                        }
-                    }
-                });
-
-                generationsAnswer = runCount;
-                upscaleAnswer = callForUpscales ? "4" : "0";
-                saveUpscalesAnswer = saveUpscales;
-                saveQuadsAnswer = saveQuads;
-                variationAnswer = 0;
-                zoomAnswer = 0
-                aiUpscale = localUpscale;
-                mjX4UpscaleAnswer = callForx4Upscales;
-
-                runnerGo = true;
+                await startGenerationBasedOnKeywordList(runOpts);
                 break;
             case "0":
                 clearScreenBelowIntro();
@@ -2441,12 +2477,12 @@ async function run() {
         }
         MJloggerEnabled = true;
 
-        if (runnerGo) {
+        if (runOpts.runnerGo) {
 
-            let promptCount = promptAnswer.length;
+            let promptCount = runOpts.promptAnswer.length;
             let prompt = "";
             let ready;
-            if (!runningProcess) ready = await readyToRun();
+            if (!runOpts.runningProcess) ready = await readyToRun();
             if (ready.READY === false) ready.subREADY = false;
             let relaxedEabledFromUserConfig = false;
             let promptSuffix = "";
@@ -2466,14 +2502,14 @@ async function run() {
             const run = async () => {
                 return new Promise(async (resolve, reject) => {
                     for (let i = 0; i < promptCount; i++) {
-                        prompt = promptAnswer[i];
+                        prompt = runOpts.promptAnswer[i];
                         prompt += promptSuffix;
                         if (ready.READY === true) {
                             intro();
                             console.log("Running with prompt (" + (i + 1) + " of " + promptCount + "): ", prompt);
                             // run the main function
-                            await midjourney.main(prompt, generationsAnswer, upscaleAnswer, variationAnswer, zoomAnswer, i == 0, aiUpscale, saveUpscalesAnswer, saveQuadsAnswer,
-                                mjX4UpscaleAnswer ?
+                            await midjourney.main(prompt, runOpts.generationsAnswer, runOpts.upscaleAnswer, runOpts.variationAnswer, runOpts.zoomAnswer, i == 0, runOpts.aiUpscale, runOpts.saveUpscalesAnswer, runOpts.saveQuadsAnswer,
+                                runOpts.mjX4UpscaleAnswer ?
                                     {
                                         enabled: true,
                                         max: 1,
@@ -2500,13 +2536,13 @@ async function run() {
 
             let cancelTheRunner = false;
             let cancellation = null;
-            if (runningProcess) {
+            if (runOpts.runningProcess) {
                 MJLogger_runner("running");
                 cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheRunner = true; });
             }
 
             let loopCount = 1;
-            while (runningProcess || subRunningProcess) {
+            while (runOpts.runningProcess || subRunningProcess) {
                 // create string of dots of length loopCount
                 let dots = ".".repeat(loopCount);
                 MJLogger_runner("Number of running upscale jobs: " + upscaler.getNumberOfRunningJobs() + "\nNumber of waiting upscale jobs: " + upscaler.getNumberOfWaitingJobs() + "\n" + dots);
@@ -2515,7 +2551,7 @@ async function run() {
                 if (loopCount > 10) loopCount = 1;
                 if (cancelTheRunner) {
                     cancellation.cancel();
-                    runningProcess = false;
+                    runOpts.runningProcess = false;
                     midjourney.killProcess();
                 }
             }
@@ -2537,7 +2573,7 @@ async function run() {
                 printDone();
                 await waitSeconds(3);
             }
-            runnerGo = false;
+            runOpts.runnerGo = false;
         }
         intro();
     }
@@ -2545,7 +2581,7 @@ async function run() {
 
 intro(); // the entry point of the script
 await setup();
-await run();
+await main();
 await midjourney.close();
 fs.writeFileSync('user.json', JSON.stringify(userConfig, null, 2));
 console.log("Done. Goodbye!");
