@@ -1134,8 +1134,9 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += ".";
     chatPrompt += " If contrasting words or themes appear in the keyword / phrases list, break each prompt into parts and append \" ::value \" to the end of each part where \"value\" is a value between 1 and 200. Note the space before the \"::\". Do not immediately follow the \" ::value\" with punctuation. Select that value based on how you want to weight the importance of two parts of the prompt. ";
     chatPrompt += " Try to impart a little randomness into that value. Break the prompt into a number of parts that is congruent with the number of contrasting themes. Include as many contrasting themes as your prompt can handle.";
-    chatPrompt += " An example prompt would look like this: \"An abstract interpretation of a half-real, half-cartoon robot, ::60 exploring a techno landscape with neon ferns ::30 and silicon trees ::75, amidst a viking settlement ::80 bathed in twilight hues ::42. Art style: photograph.\" ";
-    chatPrompt += " Be sure to specify the art style at the end of the prompt. The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
+    chatPrompt += " An example prompt would look like this: \"Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics ::120 with the whimsicality of Jean Giraud(Moebius) ::180 , taking cues from Ridley Scott's Alien ::90 and H. P. Lovecraft's cosmic horror, ::200 eerie, surreal. ::145 Art style: digital painting. ::200\" ";
+    chatPrompt += " Be sure to specify the art style at the end of the prompt. The art style should always have \" ::200\" after it. Vary the lengths of the prompts as much as possible with some being very, very long (like, 60 or more words). The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
+    //  You should prefer adjective / noun combinations over more complex descriptions.
     let chatResponse = await sendChatGPTPrompt(chatPrompt);
     if (chatResponse == null) return null;
     if (!fs.existsSync("chatResponse.txt")) {
@@ -1172,14 +1173,14 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
                     // if the values are too close together, multiply the second value by 2
                     const ratio = value / nextValue;
                     const percentageDifference = Math.abs((ratio - 2) / 2) * 100;
-                    if (percentageDifference < 80) {
+                    if (percentageDifference < 50) {
                         if (value < nextValue) {
-                            nextValue = Math.abs(Math.floor(nextValue * 2));
+                            nextValue = Math.abs(Math.floor(nextValue * 1.5));
                             if (nextValue > highestValue) highestValue = nextValue;
                             // replace the next match with the new value
                             chatResponse = chatResponse.replace(nextMatch, "::" + nextValue);
                         } else {
-                            value = Math.abs(Math.floor(value * 2));
+                            value = Math.abs(Math.floor(value * 1.5));
                             if (value > highestValue) highestValue = value;
                             // replace the match with the new value
                             chatResponse = chatResponse.replace(m, "::" + value + " ");
@@ -1212,21 +1213,22 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
 }
 
 async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
+    let maxBatchSize = 5;
     chatGPTmostRecentResId = null;
     console.log("Generating prompts from theme: ", JSON.stringify(theme));
-    let batchJobCount = Math.ceil(count / 10);
+    let batchJobCount = Math.ceil(count / maxBatchSize);
     if (batchJobCount > 1) {
-        console.log("Prompt count > 10. Running " + batchJobCount + " chatGPT jobs.");
+        console.log("Prompt count > "+maxBatchSize+". Running " + batchJobCount + " chatGPT jobs.");
     }
     let prompts = [];
     for (let i = 0; i < batchJobCount; i++) {
         let isLastRun = i == batchJobCount - 1;
-        let isDivisibleByTen = count % 10 == 0;
-        let thisRunCount = 10;
-        if (isLastRun && !isDivisibleByTen) {
-            thisRunCount = count % 10;
-        } else if (isLastRun && isDivisibleByTen) {
-            thisRunCount = 10;
+        let isDivisibleByMaxBatchSize = count % maxBatchSize == 0;
+        let thisRunCount = maxBatchSize;
+        if (isLastRun && !isDivisibleByMaxBatchSize) {
+            thisRunCount = count % maxBatchSize;
+        } else if (isLastRun && isDivisibleByMaxBatchSize) {
+            thisRunCount = maxBatchSize;
         }
         console.log("Running chatGPT job " + (i + 1) + " of " + batchJobCount + "... Generating " + thisRunCount + " prompts.");
         let chatResponse = await generatePromptFromThemKeywords(theme, thisRunCount);
@@ -1240,8 +1242,8 @@ async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
         }
         if (i < batchJobCount - 1 && chatResponse != null) {
             console.log();
-            console.log("Waiting 5 seconds between OpenAI requests...");
-            await waitSeconds(5);
+            console.log("Waiting 1 seconds between OpenAI requests...");
+            await waitSeconds(1);
         }
     }
     console.log("Generated " + prompts.length + " prompts from theme: ", JSON.stringify(theme));
