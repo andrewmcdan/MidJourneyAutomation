@@ -382,7 +382,7 @@ class MJ_Handler {
         let matches = msg.fullPrompt.match(regex);
         if (matches.length > 0) {
             msg.commands = ["Vary (Strong)", "Vary (subtle)", "Upscale 2x", "Upscale 4x", "Zoom Out 2x", "Zoom Out 4x", "Make Square", "Expand Left", "Expand Right", "Expand Up", "Expand Down"];
-        }else{
+        } else {
             msg.command = ["ReRoll", "Upscale #1", "Upscale #2", "Upscale #3", "Upscale #4", "Variations #1", "Variations #2", "Variations #3", "Variations #4", "Upscale All", "Variations All"];
         }
         return msg;
@@ -1055,7 +1055,7 @@ function printToLineRelative(line, text) {
 
 let chatGPTmostRecentResId = null;
 // send a prompt to chatgpt and return the response
-async function sendChatGPTPrompt(prompt) {
+async function sendChatGPTPrompt(prompt, cancel_cb) {
     const chatgpt = new ChatGPTAPI({
         apiKey: userConfig.openai_key,
         completionParams: {
@@ -1074,7 +1074,7 @@ async function sendChatGPTPrompt(prompt) {
     let cancelTheGPT = false;
     // cancellation is a promise that will be resolved when the user presses enter to cancel the GPT.
     // This is used to cancel the prompt is the user never presses enter.
-    let cancellation = input({ message: 'Press enter to cancel and return to menu.' }).then(() => { cancelTheGPT = true; });
+    cancel_cb.then(() => { cancelTheGPT = true; });
     // res is the response from chatgpt
     let res = null;
     // count is used to print a dot every 2 seconds to show that the GPT is still running
@@ -1096,19 +1096,10 @@ async function sendChatGPTPrompt(prompt) {
             if (!cancelTheGPT) res = response; // set res to the response if the user hasn't pressed enter to cancel
         }).catch((err) => {
             console.log("ChatGPT error statusCode: ", err.statusCode);
-        }).finally(() => {
-            if (typeof cancellation.cancel == "function") {
-                // cancel the cancellation promise
-                cancellation.cancel();
-            }
         });
     // wait for the response or for the user to press enter to cancel
     while (res == null && !cancelTheGPT) {
         await waitSeconds(1);
-    }
-
-    if (typeof cancellation.cancel == "function") {
-        cancellation.cancel();
     }
     if (cancelTheGPT) {
         console.log("Prompt cancelled");
@@ -1122,7 +1113,7 @@ async function sendChatGPTPrompt(prompt) {
 
 let chatResponsesArr = [];
 // generate a prompt from a theme object
-async function generatePromptFromThemKeywords(theme, count = 10) {
+async function generatePromptFromThemKeywords(theme, count = 10, cancel_cb) {
     let chatPrompt = "Your role is to design theme based prompts for an AI image generator, midjourney. Your theme should be based upon the following keywords but you can get creative with it: ";
     let experimentalChatPrompt = "Your role is to design theme based prompts for an AI image generator, midjourney. Your theme should be based upon the following keywords and phrases (keywords / phrases may need to be interpreted as commands e.g. \"the nearest holiday less than one week before\" would return \"halloween\" during the week preceding halloween, and nothing otherwise) but you can get creative with it: ";
     if (experimentalChatPromptEnabled) chatPrompt = experimentalChatPrompt;
@@ -1137,7 +1128,7 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     chatPrompt += " An example prompt would look like this: \"Vast cityscape filled with bioluminescent starships and tentacled cosmic deities, a fusion of HR Giger's biomechanics ::120 with the whimsicality of Jean Giraud(Moebius) ::180 , taking cues from Ridley Scott's Alien ::90 and H. P. Lovecraft's cosmic horror, ::200 eerie, surreal. ::145 Art style: digital painting. ::200\" ";
     chatPrompt += " Be sure to specify the art style at the end of the prompt. The art style should always have \" ::200\" after it. Vary the lengths of the prompts as much as possible with some being very, very long (like, 60 or more words). The prompts you write need to be output in JSON with the following schema: {\"prompts\":[\"your first prompt here\",\"your second prompt here\"]}. Do not respond with any text other than the JSON. Generate " + count + " prompts for this theme. Avoid words that can be construed as offensive, sexual, overly violent, or related.";
     //  You should prefer adjective / noun combinations over more complex descriptions.
-    let chatResponse = await sendChatGPTPrompt(chatPrompt);
+    let chatResponse = await sendChatGPTPrompt(chatPrompt, cancel_cb);
     if (chatResponse == null) return null;
     if (!fs.existsSync("chatResponse.txt")) {
         fs.writeFileSync("chatResponse.txt", chatResponse);
@@ -1212,16 +1203,28 @@ async function generatePromptFromThemKeywords(theme, count = 10) {
     return chatResponse;
 }
 
+function reflect(promise) {
+    return promise.then(
+        value => ({ state: 'fulfilled', value }),
+        error => ({ state: 'rejected', error })
+    );
+}
+
 async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
     let maxBatchSize = 5;
     chatGPTmostRecentResId = null;
     console.log("Generating prompts from theme: ", JSON.stringify(theme));
     let batchJobCount = Math.ceil(count / maxBatchSize);
     if (batchJobCount > 1) {
-        console.log("Prompt count > "+maxBatchSize+". Running " + batchJobCount + " chatGPT jobs.");
+        console.log("Prompt count > " + maxBatchSize + ". Running " + batchJobCount + " chatGPT jobs.");
     }
     let prompts = [];
+    // here we create a promise that will be resolved when the user presses enter, and we pass the promise on to the next function which passes it on to the next function, etc.
+    let cancellation = input({ message: 'Press enter to cancel the remaining ChatGPT jobs.' });
+    let cancelled = false;
+    cancellation.then(() => { cancelled = true; });
     for (let i = 0; i < batchJobCount; i++) {
+        if (cancelled) break;
         let isLastRun = i == batchJobCount - 1;
         let isDivisibleByMaxBatchSize = count % maxBatchSize == 0;
         let thisRunCount = maxBatchSize;
@@ -1231,7 +1234,7 @@ async function generatePromptFromThemKeywordsBatch(theme, count = 10) {
             thisRunCount = maxBatchSize;
         }
         console.log("Running chatGPT job " + (i + 1) + " of " + batchJobCount + "... Generating " + thisRunCount + " prompts.");
-        let chatResponse = await generatePromptFromThemKeywords(theme, thisRunCount);
+        let chatResponse = await generatePromptFromThemKeywords(theme, thisRunCount, cancellation);
 
         if (chatResponse != null) {
             try {
