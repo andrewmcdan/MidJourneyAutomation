@@ -415,6 +415,7 @@ class MJ_Handler {
             if (printInfo) {
                 let info = await mj.getInfo();
                 // console.log("Midjourney info:\n\n", info.embeds[0].description);
+                await this.getCurrentWaitTime();
                 this.logger("\n\n\nMidjourney info:\n\n" + info);
             }
             // loop while the max generations count is less than the max generations
@@ -664,6 +665,30 @@ class MJ_Handler {
                 resolve("output/" + filename + '.png');
             }).catch((err) => { console.log(err); });
         });
+    }
+
+    async getCurrentWaitTime() {
+        let res = await fetch("https://status-feed-streedkusq-ue.a.run.app/", {
+            "headers": {
+                "accept": "*/*",
+                "accept-language": "en-US,en;q=0.9",
+                "cache-control": "no-cache",
+                "pragma": "no-cache",
+                "sec-ch-ua": "\"Google Chrome\";v=\"119\", \"Chromium\";v=\"119\", \"Not?A_Brand\";v=\"24\"",
+                "sec-ch-ua-mobile": "?0",
+                "sec-ch-ua-platform": "\"Windows\"",
+                "sec-fetch-dest": "empty",
+                "sec-fetch-mode": "cors",
+                "sec-fetch-site": "cross-site",
+                "Referer": "https://status.midjourney.com/",
+                "Referrer-Policy": "strict-origin-when-cross-origin"
+            },
+            "body": null,
+            "method": "GET"
+        });
+        let res2 = await res.json();
+
+        console.log("waitTime: ", res2);
     }
 }
 
