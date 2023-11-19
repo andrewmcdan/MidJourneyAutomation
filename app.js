@@ -688,7 +688,8 @@ class MJ_Handler {
         });
         let res2 = await res.json();
 
-        console.log("waitTime: ", res2);
+        // console.log("waitTime: ", res2.metrics.find((val)=>{val.name =="jobs.time_to_start.relax.30min.job_type_v5_diffusion" || true})?.value);
+        return res2.metrics.find((val)=>{val.name =="jobs.time_to_start.relax.30min.job_type_v5_diffusion" || true})?.value;
     }
 }
 
