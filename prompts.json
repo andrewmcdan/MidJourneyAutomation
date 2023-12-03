@@ -278,6 +278,16 @@
         "cybernetics"
       ],
       "style": "weirdcore horror"
+    },
+    {
+      "keywords": [
+        "space",
+        "architecture",
+        "cybernetics",
+        "colors",
+        "lovecraftian horror"
+      ],
+      "style": "space photography"
     }
   ],
   "prompts": [
