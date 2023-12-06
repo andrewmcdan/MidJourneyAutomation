@@ -415,8 +415,8 @@ class MJ_Handler {
             if (printInfo) {
                 let info = await mj.getInfo();
                 // console.log("Midjourney info:\n\n", info.embeds[0].description);
-                await this.getCurrentWaitTime();
-                this.logger("\n\n\nMidjourney info:\n\n" + info);
+                let currentRelaxWaitTime = await this.getCurrentWaitTime();
+                this.logger("\n\n\nMidjourney info:\n\n" + info + "\n\nCurrent relax wait time: " + currentRelaxWaitTime + "\n\n");
             }
             // loop while the max generations count is less than the max generations
             while (maxGenerationsCount < maxGenerations) {
@@ -689,7 +689,7 @@ class MJ_Handler {
         let res2 = await res.json();
 
         // console.log("waitTime: ", res2.metrics.find((val)=>{val.name =="jobs.time_to_start.relax.30min.job_type_v5_diffusion" || true})?.value);
-        return res2.metrics.find((val)=>{val.name =="jobs.time_to_start.relax.30min.job_type_v5_diffusion" || true})?.value;
+        return res2.metrics.find((val) => { val.name == "jobs.time_to_start.relax.30min.job_type_v5_diffusion" || true })?.value;
     }
 }
 
