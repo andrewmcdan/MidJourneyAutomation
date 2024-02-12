@@ -1,5 +1,6 @@
 /*
 @TODO: 
+- update for new Midjourney API
 - add the ability to take in a UUID and run tasks on that image
 -̶ a̶d̶d̶ q̶u̶e̶s̶t̶i̶o̶n̶ t̶o̶ e̶a̶c̶h̶ m̶o̶d̶e̶ t̶o̶ a̶s̶k̶ i̶f̶ y̶o̶u̶ w̶a̶n̶t̶ t̶o̶ s̶a̶v̶e̶ t̶h̶e̶ q̶u̶a̶d̶ f̶i̶l̶e̶s̶
 -̶ a̶d̶d̶ q̶u̶e̶s̶t̶i̶o̶n̶ t̶o̶ e̶a̶c̶h̶ m̶o̶d̶e̶ t̶o̶ a̶s̶k̶ i̶f̶ t̶h̶e̶ u̶s̶e̶r̶ w̶a̶n̶t̶s̶ t̶o̶ s̶a̶v̶e̶ a̶n̶y̶ f̶i̶l̶e̶s̶ o̶r̶ j̶u̶s̶t̶ r̶u̶n̶ t̶h̶e̶ b̶o̶t̶
