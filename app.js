@@ -388,6 +388,11 @@ class MJ_Handler {
         return msg;
     }
 
+    async panLeftCommand(uuid, grid_id) {
+        let msg = await this.mj.panLeftCommand(uuid, grid_id);
+        return msg;
+    }
+
     // the main function runner
     // MJprompt: the prompt to send to Midjourney
     // maxGenerations: the max number of times to run the outer loop
@@ -2157,6 +2162,10 @@ const runCommandsOnImageUUID = async (runOpts) => {
     clearScreenBelowIntro();
     console.log("Run commands on an image UUID");
     let uuid = await input({ message: 'What is the image / job UUID?' });
+    let grid_id = await input({ message: 'What is the grid number (1-4)?' });
+    grid_id--;
+    if(grid_id < 0) grid_id = 0;
+    if(grid_id > 3) grid_id = 3;
 
     let regex = /^[0-9a-fA-F]{8}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{4}\b-[0-9a-fA-F]{12}$/g;
 
@@ -2166,8 +2175,10 @@ const runCommandsOnImageUUID = async (runOpts) => {
         return;
     }
 
-    let img = await midjourney.showCommand(uuid);
+    // let img = await midjourney.showCommand(uuid);
+    let img = await midjourney.panLeftCommand(uuid, grid_id);
     await waitSeconds(200);
+    console.log("img = " + img);
     if (img == null) return;
 
     // ab608c1a-6156-41ec-be4f-a84b7239bac5
